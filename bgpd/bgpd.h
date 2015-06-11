@@ -79,6 +79,11 @@ struct bgp_master
 #define UPDATE_SUCCESS 			1
 #define UPDATE_FAIL 			0
 
+#define PATH_COST_UNCHANGED		0
+#define PATH_COST_UPDATED		1
+#define NEW_PATH_ADDED  		2
+
+
 /* @PEMP data structure */
 struct pemp_community
 {

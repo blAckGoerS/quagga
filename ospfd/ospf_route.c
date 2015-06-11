@@ -354,8 +354,6 @@ ospf_intra_add_router (struct route_table *rt, struct vertex *v,
   or->u.std.options = lsa->header.options;
   or->u.std.flags = lsa->flags;
   
-  /* @PEMP get ingress cost */
-
   
   /* If Router X is the endpoint of one of the calculating router's
      virtual links, and the virtual link uses Area A as Transit area:
@@ -476,7 +474,6 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
   p.prefixlen = ip_masklen (link->link_data);
   apply_mask_ipv4 (&p);
 
-  
   if (IS_DEBUG_OSPF_EVENT)
     zlog_debug ("ospf_intra_add_stub(): processing route to %s/%d",  
 	       inet_ntoa (p.prefix), p.prefixlen);
@@ -526,8 +523,8 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
 		   "another route to the same prefix found with cost %u",
 		   cur_or->cost);
 
-      /* Compare this distance to the current best cost to the stub
-	 network.  This is done by looking up the stub network's
+     /* Compare this distance to the current best cost to the stub
+	 network. This is done by looking up the stub network's
 	 current routing table entry.  If the calculated distance D is
 	 larger, go on to examine the next stub network link in the
 	 LSA. */
@@ -600,7 +597,7 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
   or->u.std.origin = (struct lsa_header *) lsa;
   
   /* @PEMP get ingress cost */
-  int icost = get_ingress_cost (v->id);
+  int icost = get_ingress_cost (v->id);  //v->id = border router id
   if (icost)
   {
 	  or->ingress_cost = icost;

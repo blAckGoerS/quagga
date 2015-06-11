@@ -447,11 +447,17 @@ zsend_route_multipath (int cmd, struct zserv *client, struct prefix *p,
       stream_putc (s, rib->distance);
       SET_FLAG (zapi_flags, ZAPI_MESSAGE_METRIC);
       stream_putl (s, rib->metric);
-	  /* @PEMP */
+	  /* @PEMP add ingress cost on to the route message sending to bgpd */
 	  if ( rib->ingress_cost )
 	  {
 		SET_FLAG (zapi_flags, ZAPI_MESSAGE_INGRESSCOST);
 		stream_putl (s, rib->ingress_cost);
+		// put also the ip address of the border router at the destination prefix onto the stream
+		// the IGP path cost calculated is  the routing cost between this pemp router and the prefix
+		// but it is also the path cost from pemp router to border router as well
+		// we care about the ip address of border router rather that the prefix
+		// since it help bgpd to easily map between border router id and associated ingress/egress cost
+		stream_put_in_addr(s,&rib->bid );
 	  }
 	  
     }
@@ -842,7 +848,16 @@ zread_ipv4_add (struct zserv *client, u_short length)
     
   /* @PEMP Ingress cost */
   if (CHECK_FLAG (message, ZAPI_MESSAGE_INGRESSCOST))
+  {
 	  rib->ingress_cost = stream_getl (s);
+	  rib->bid.s_addr   = stream_get_ipv4 (s); // ip address of border router
+	  // this function is called by zebra to handle the stream received from ospfd - this stream is created by ospf_zebra_add() defined in ospf_zebra.c
+	  // each route message sent from ospfd to zebra for the purpose of redistributing ingress cost to bgpd will be attached with border router's ip address
+	  // this is to support bgpd to easily map igp cost value with correct border router
+	  // we could not use the current prefix or next hop to do this association
+	  // need to define in rib's structure a new attribute named bid to store the border router's ip address get from the stream
+	  // we will call to this attribute when zebra send the route message to bgpd
+  }
 	
   /* @PEMP Community ID - using the same flag here , once the weight is available community is set */
   if (clubmed_community)

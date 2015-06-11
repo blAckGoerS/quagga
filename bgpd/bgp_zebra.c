@@ -273,8 +273,14 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 
   /* @PEMP get the ingress cost from the stream and put to api.ingress_cost */
   if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
+  {
     api.ingress_cost = stream_getl (s);
-	
+    api.bid.s_addr = stream_get_ipv4 (s);
+    // get the ip of border router associated with that ingress cost value
+    // define in api structure an attribute to handle ip address of border router
+    // zapi_ipv4 structure is defined in lib/zclient.h
+
+  }
   if (command == ZEBRA_IPV4_ROUTE_ADD)
     {
       if (BGP_DEBUG(zebra, ZEBRA))
@@ -289,8 +295,11 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 		}
 	/* @PEMP get*/
 	 if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
-		bgp_redistribute_add_pemp((struct prefix *)&p, &nexthop, NULL,
-			   api.metric, api.type,api.ingress_cost);
+	 {
+		 zlog_debug("call to redistribute route");
+		 bgp_redistribute_add_pemp((struct prefix *)&p, &nexthop, NULL,
+			   api.metric, api.type,api.ingress_cost,api.bid);
+	 }
 	 else	 
 		bgp_redistribute_add((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type);

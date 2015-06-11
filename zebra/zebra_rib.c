@@ -42,40 +42,6 @@
 #include "zebra/debug.h"
 #include "zebra/zebra_fpm.h"
 
-/* PEMP test */
-struct pemp_clubmed_community_lite clubmed_community[MAX_ROUTEGAME];
-int number_of_community;
-
-int lookup_community(int community_id,int n,struct pemp_clubmed_community_lite community[n])
-{
-	int i;
-	for ( i=0; i<n; i++)
-		if (community[i].id == community_id)
-			return i;
-	return -1;
-}
-
-void add_clubmed_net(struct prefix p, int community_id)
-{
-	int i = lookup_community(community_id,number_of_community,clubmed_community);
-	if (i == -1)
-	{
-		i = number_of_community;
-		clubmed_community[i].id = community_id;
-		clubmed_community[i].rule_added = 0;
-		clubmed_community[i].clubmed_net[0] = p;
-		clubmed_community[i].number_of_prefix++;
-		number_of_community++;
-	}
-	else
-	{
-			int j = clubmed_community[i].number_of_prefix;
-			clubmed_community[i].clubmed_net[j] = p;
-			clubmed_community[i].number_of_prefix++;
-	}
-}
-/* PEMP end */
-
 /* Default rtm_table for all clients */
 extern struct zebra_t zebrad;
 
@@ -1877,12 +1843,6 @@ rib_add_ipv4 (int type, int flags, struct prefix_ipv4 *p,
   struct route_node *rn;
   struct nexthop *nexthop;
 
-  
-    /* @PEMP test */
-    zlog_debug (" add ip v4 ");
-	/*PEMP end */
-	
-	
   /* Lookup table.  */
   table = vrf_table (AFI_IP, safi, 0);
   if (! table)

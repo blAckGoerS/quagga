@@ -130,33 +130,6 @@ zebra_static_ipv4 (struct vty *vty, int add_cmd, const char *dest_str,
   return CMD_SUCCESS;
 }
 
-/* @PEMP command to support clubmed community network */
-DEFUN (bgp_pemp_clubmedcommunity_prefix,
-		bgp_pemp_clubmedcommunity_prefix_cmd,
-		"network A.B.C.D/M community <1-255>",
-		"Add customer's network to a specific local community \n")
-{
-	int ret;
-	int c_id;
-	struct prefix clubmednet;
-
-	ret = str2prefix (argv[0], &clubmednet);
-	if (!ret)
-	{
-		vty_out (vty, "%% Network prefix is not well specified %s", VTY_NEWLINE);
-		return CMD_WARNING;
-	}
-	apply_mask (&clubmednet);
-
-	VTY_GET_INTEGER ( "community id", c_id , argv[1]);
-
-	add_clubmed_net(clubmednet,c_id);
-	return CMD_SUCCESS;
-}
-
-/* end PEMP */
-
-
 /* Static route configuration.  */
 DEFUN (ip_route, 
        ip_route_cmd,
@@ -2115,9 +2088,6 @@ zebra_vty_init (void)
   install_element (CONFIG_NODE, &no_ip_route_flags_distance2_cmd);
   install_element (CONFIG_NODE, &no_ip_route_mask_flags_distance_cmd);
   install_element (CONFIG_NODE, &no_ip_route_mask_flags_distance2_cmd);
-  /* @PEMP clubmed community support command */
-  install_element (CONFIG_NODE, &bgp_pemp_clubmedcommunity_prefix_cmd);
-  /* end PEMP */
 
   install_element (VIEW_NODE, &show_ip_route_cmd);
   install_element (VIEW_NODE, &show_ip_route_addr_cmd);

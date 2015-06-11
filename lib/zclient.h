@@ -133,7 +133,11 @@ struct zapi_ipv4
 
   u_int32_t metric;
   
+  /* PEMP ingress cost value , to support redistributing of ingress cost from ospfd to bgpd */
   u_int32_t ingress_cost;
+  /* @PEMP border router id , only use in case of redistributing igp cost from ospfd to bgpd */
+  struct in_addr bid;
+
 };
 
 /* Prototypes of zebra client service functions. */

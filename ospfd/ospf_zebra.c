@@ -423,6 +423,7 @@ ospf_zebra_add (struct prefix_ipv4 *p, struct ospf_route *or)
 	  if (CHECK_FLAG (message, ZAPI_MESSAGE_INGRESSCOST))
 		{
 			stream_putl (s, or->ingress_cost);
+			stream_put_in_addr (s, &or->id); //put on stream the ip address of border router
 		}
 		
       stream_putw_at (s, 0, stream_get_endp (s));

@@ -399,10 +399,6 @@ bgp_info_mpath_update_rg (struct bgp_node *rn, struct bgp_info *new_best,
 	  char pfx_buf[INET_ADDRSTRLEN], nh_buf[2][INET_ADDRSTRLEN];
 
 	  zlog_debug("bgp_info_mpath_update_rg");
-	  if (old_best)
-		  zlog_debug("Old best is route via %s",inet_ntoa(old_best->attr->nexthop));
-	  if (new_best)
-		  zlog_debug("New best is route via %s",inet_ntoa(new_best->attr->nexthop) );
 
 	  mpath_changed = 0;
 	  maxpaths = BGP_DEFAULT_MAXPATHS;
@@ -459,20 +455,17 @@ bgp_info_mpath_update_rg (struct bgp_node *rn, struct bgp_info *new_best,
 		  list_delete_node (mp_list, mp_node);
 		  if ((mpath_count < maxpaths) && new_mpath != new_best)
 		  {
-			  zlog_debug(" >>>new_mpath %s",inet_ntoa(new_mpath->attr->nexthop));
-			  zlog_debug(" >dequeue new_mpath ");
+			  // dequeue new_mpath first
 			  bgp_info_mpath_dequeue(new_mpath);
 
+			  // then enqueue new_path to prev_path
 			  bgp_info_mpath_enqueue (prev_mpath, new_mpath);
-			  zlog_debug(" >enqueue new_mpath to prev_mpath");
 			  
 			  prev_mpath = new_mpath;
 			  mpath_changed = 1;
 			  mpath_count++;
 		  }
-
 		  mp_node = mp_next_node; //move to next node
-		  zlog_debug(" next node ");
 	  }
 
 	  if (new_best)

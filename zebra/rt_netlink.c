@@ -42,7 +42,6 @@
 #include "zebra/redistribute.h"
 #include "zebra/interface.h"
 #include "zebra/debug.h"
-
 #include "rt_netlink.h"
 
 
@@ -69,9 +68,16 @@ static const struct message nlmsg_str[] = {
   {0, NULL}
 };
 
-// @PEMP
-struct pemp_clubmed_community_lite clubmed_community[MAX_ROUTEGAME];
-int number_of_community;
+/* @PEMP */
+int added_community[MAX_ROUTEGAME];
+int number_of_added_community = 0;
+// keep track on the number of local community that have been added to routing rule - avoid duplication rule add for same local community
+// since we do not add rule for each received destination prefix
+// each local community only associate with one rule, one routing table
+// if fire wall mark rule for local community x has been added
+// local_community[i] = x
+// if we loop through the array and not found x, then rule for x has not been added yet
+// NOTE : same source, same local community then lookup the same routing table (table id = local community ID)
 
 extern struct zebra_t zebrad;
 
@@ -1353,7 +1359,7 @@ netlink_talk (struct nlmsghdr *n, struct nlsock *nl)
 
   /* 
    * Get reply from netlink socket. 
-   * The reply should either be an acknowlegement or an error.
+   * The reply should either be an acknowledgement or an error.
    */
   return netlink_parse_info (netlink_talk_filter, nl);
 }
@@ -1462,9 +1468,7 @@ _netlink_route_build_singlepath(
       if (nexthop->src.ipv4.s_addr)
         addattr_l (nlmsg, req_size, RTA_PREFSRC,
                    &nexthop->src.ipv4, bytelen);
-	  /* @PEMP testing */
-	  zlog_debug("netlink_route_multipath: build single path");
-      
+
 	  if (IS_ZEBRA_DEBUG_KERNEL)
         zlog_debug("netlink_route_multipath() (%s): "
                    "nexthop via %s if %u",
@@ -1558,16 +1562,10 @@ _netlink_route_build_multipath(
       if (nexthop->src.ipv4.s_addr)
         *src = &nexthop->src;
 	  
-	  /* @PEMP testing */
-	  zlog_debug("netlink_route_multipath: build multipath path");
-
 	  /* @PEMP */
-	   
       if (nexthop->weight)
     	  rtnh->rtnh_hops = nexthop->weight -1 ; //1 is the default weight automatically added by Linux Kernel
-	  
-      /* end PEMP */
-	  
+
       if (IS_ZEBRA_DEBUG_KERNEL)
         zlog_debug("netlink_route_multipath() (%s): "
                    "nexthop via %s if %u",
@@ -1656,16 +1654,41 @@ _netlink_route_debug(
          p->prefixlen, nexthop_type_to_str (nexthop->type));
     }
 }
-
+/* @PEMP */
+// check whether the associated rule for input community has been added or not
+int rule_added(int com)
+{
+	int i;
+	for (i=0;i<number_of_added_community;i++)
+	{
+		if (added_community[i] == com)
+			return 1;
+	}
+	return 0;
+}
+/* @PEMP */
+// remove all rules corresponding to input community
+// to avoid duplicated rule add
+void remove_unused_rule(int c_id)
+{
+	char remove_command[200];
+	char table_id[10];
+	sprintf(table_id,"%d",c_id);
+	strcpy(remove_command, "ip rule del lookup ");
+	strcat(remove_command,table_id);
+	system(remove_command); // execute command to remove duplicated rule
+}
 /* Routing table change via netlink interface. */
 static int
 netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
                          int family)
 {
-	// for the prefix that belong to peer clubmed community, we always add routing entry to 2 routing tables
-	// one is the default and the other is the table X - X also the community ID
+	/* @PEMP */
+	// for each destination prefix that belong to peer's community, we always add routing entry to 2 routing tables
+	// one is the default and the other is the table X, in which X = community ID
 	// for the case of single path (path selected by PEMP and normal BGP decision process are the same), this path will be added to both routing table
-	// for the case of multipath ( one path selected by normal + multiple paths selected by PEMP ) , multipath added to table X and one path added to default
+	// for the case of multi-path ( one path selected by normal + multiple paths selected by PEMP ) , multipath added to table X and one path added to default
+	// we also add routing rules to differentiate between two table
 
 	int bytelen;
 	struct sockaddr_nl snl;
@@ -1673,9 +1696,6 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 	int recursing;
 	int nexthop_num;
 	int discard;
-
-	//PEMP added variable
-	int is_clubmed_entry = 0;
 
 	const char *routedesc;
 
@@ -1728,8 +1748,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 	// create a new rule_add_request message , and send this request via netlink
 	if (rib->clubmed_community_id)
 	{
-		is_clubmed_entry = rib->clubmed_community_id;
-
+		// create route add request message
 		memset (&pemp_req, 0, sizeof pemp_req - NL_PKT_BUF_SIZE);
 
 		pemp_req.n.nlmsg_len 	= NLMSG_LENGTH (sizeof (struct rtmsg));
@@ -1745,62 +1764,55 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 		addattr_l (&pemp_req.n, sizeof pemp_req, RTA_DST, &p->u.prefix, bytelen);
 		addattr32 (&pemp_req.n, sizeof pemp_req, RTA_PRIORITY, 0);
 
-		/* PEMP add rule */
-		int i = lookup_community(rib->clubmed_community_id,number_of_community,clubmed_community);
+		/* adding rule */
+		// there are many prefix networks in one community
+		// once a destination  prefix advertisement is received, it is necessary to check whether the rule for associated local community is added or not
+		// If we do not perfom that check, each time a network prefix is received a new rule is added -> redundancy
 
-		if ( i != -1 )
+		// before adding certain rule, delete all previous added rule to avoid duplicate
+		// for each community, there is only one associated rule
+		// system call to ip rule del lookup [table id]
+		// where table id is
+		if ( !rule_added(rib->clubmed_community_id) )
 		{
-			if ( !clubmed_community[i].rule_added )
-			{
-				memset(&rule_req, 0, sizeof(rule_req));
-				rule_req.n.nlmsg_type 	= 32; //RTM_NEWRULE	= 32
-				rule_req.n.nlmsg_len 	= NLMSG_LENGTH(sizeof(struct rtmsg));
-				rule_req.n.nlmsg_flags 	= NLM_F_REQUEST;
+			// zebra not add the rule for received community yet
+			// so in the kernel routing rule, rule related to this community should be remove
+			// or there should be no rule related to this community in kernel's routing rule
+			remove_unused_rule(rib->clubmed_community_id);
 
-				rule_req.r.rtm_family 	= family;
-				rule_req.r.rtm_protocol = RTPROT_ZEBRA;
-				rule_req.r.rtm_scope 	= RT_SCOPE_UNIVERSE;
-				rule_req.r.rtm_table 	= rib->table;
-				rule_req.r.rtm_type 	= RTN_UNICAST;
-				rule_req.r.rtm_flags 	= 0;
+			zlog_debug ("netlink_route_multipath() adding rule for community %d ",rib->clubmed_community_id);
 
-				rule_req.n.nlmsg_flags |= NLM_F_CREATE|NLM_F_EXCL;
+			added_community[number_of_added_community] = rib->clubmed_community_id;
+			number_of_added_community++;
 
-				/*
-				//table
-				addattr32(&rule_req.n, sizeof(rule_req), FRA_TABLE, rib->clubmed_community_id); // FRA_TABLE
-				//fwmark
-				__u32 fwmark = rib->clubmed_community_id;
-				addattr32(&rule_req.n, sizeof(rule_req), FRA_FWMARK, fwmark);
-				//add rule
-				netlink_talk (&rule_req.n, &netlink_cmd);
-				zlog_debug ("adding rule %d ",fwmark);
-				*/
+			memset(&rule_req, 0, sizeof(rule_req));
+			rule_req.n.nlmsg_type 	= 32; //RTM_NEWRULE	= 32
+			rule_req.n.nlmsg_len 	= NLMSG_LENGTH(sizeof(struct rtmsg));
+			rule_req.n.nlmsg_flags 	= NLM_F_REQUEST;
 
-				//to
-				rule_req.r.rtm_dst_len = p->prefixlen;
-				addattr_l(&rule_req.n, sizeof(rule_req), FRA_DST, &p->u.prefix, bytelen);
+			rule_req.r.rtm_family 	= family;
+			rule_req.r.rtm_protocol = RTPROT_ZEBRA;
+			rule_req.r.rtm_scope 	= RT_SCOPE_UNIVERSE;
+			rule_req.r.rtm_table 	= rib->table;
+			rule_req.r.rtm_type 	= RTN_UNICAST;
+			rule_req.r.rtm_flags 	= 0;
 
-				//table
-				addattr32(&rule_req.n, sizeof(rule_req), FRA_TABLE, rib->clubmed_community_id); // FRA_TABLE
+			rule_req.n.nlmsg_flags |= NLM_F_CREATE|NLM_F_EXCL;
 
-				int j;
-				for ( j = 0 ;  j < clubmed_community[i].number_of_prefix ; j++)
-				{
-					struct prefix clubnetnet;
-					clubnetnet = clubmed_community[i].clubmed_net[j];
+			// firewall mark rule
+			// using this fwmark based rule we need to mark the packets before the routing table make forwarding decision
+			// ~#iptables -A PREROUTING -t mangle --source 192.168.2.0/24 --destination 192.168.3.0/24 -j MARK --set-mark 2
+			// more general ~#iptables -A PREROUTING -t mangle --source [prefix in local community] --destination [prefix in peer community] -j MARK --set-mark 2
 
-					//from
-					rule_req.r.rtm_src_len = clubnetnet.prefixlen;
-					addattr_l(&rule_req.n, sizeof(rule_req), FRA_SRC, &(clubnetnet.u.prefix), bytelen);// FRA_SRC = 2
-
-					//add rules for all network prefix in the community
-					netlink_talk (&rule_req.n, &netlink_cmd);
-				}
-
-				clubmed_community[i].rule_added = 1;
+			//table
+			addattr32(&rule_req.n, sizeof(rule_req), FRA_TABLE, rib->clubmed_community_id); // FRA_TABLE
+			//fwmark
+			__u32 fwmark = rib->clubmed_community_id;
+			addattr32(&rule_req.n, sizeof(rule_req), FRA_FWMARK, fwmark);
+			//add rule
+			netlink_talk (&rule_req.n, &netlink_cmd);
+			//zlog_debug ("adding rule %d ",fwmark);
 			}
-		}
 		/* end PEMP rule */
 	 }
 
@@ -1877,7 +1889,8 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 		rtnh = RTA_DATA (rta);
 
 		/* @PEMP */
-		if (is_clubmed_entry)
+		// adding multiple next hops to the NEW ROUTE request sending to kernel
+		if (rib->clubmed_community_id)
 		{
 			struct nexthop *temp_nh; // new created temp_nh to keep the weight from rib->nexthop
 			temp_nh = rib->nexthop;

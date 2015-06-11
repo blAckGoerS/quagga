@@ -5368,7 +5368,7 @@ bgp_config_write (struct vty *vty)
       if ( bgp->bgp_pemp_enable)
       {
     	  vty_out (vty,"pemp enable%s",VTY_NEWLINE);
-    	  zlog_debug ("number of routing game %d",bgp->number_of_game);
+
     	  if (bgp->number_of_game)
     	  {
     		  int i,j,k;
@@ -5386,7 +5386,7 @@ bgp_config_write (struct vty *vty)
     			  {
     				  if ( game->community_id == community->id )
     				  {
-    					  vty_out(vty," routegame community local-id %d peer-id %d configure %d %f %d%s",
+    					  vty_out(vty," routing-game community local-id %d peer-id %d configure %d %f %d%s",
         			      	community->id,community->peer_id,
         			      	game->policy,game->threshold,game->uLB,VTY_NEWLINE);
 
@@ -5470,7 +5470,6 @@ bgp_init (void)
 
   /* Init zebra. */
   bgp_zebra_init ();
-
   /* BGP inits. */
   bgp_attr_init ();
   bgp_debug_init ();

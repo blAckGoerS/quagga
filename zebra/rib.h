@@ -29,26 +29,8 @@
 
 #define DISTANCE_INFINITY  255
 
-
-
 /* @PEMP */
-
-#define MAX_PREFIX 		5
-#define MAX_ROUTEGAME 	3
-
-struct pemp_clubmed_community_lite
-{
-	u_int8_t  		id;
-	u_int8_t		rule_added;
-	u_int8_t  		number_of_prefix;
-	struct prefix 	clubmed_net[MAX_PREFIX];
-};
-
-extern struct pemp_clubmed_community_lite clubmed_community[MAX_ROUTEGAME];
-extern int number_of_community;
-
-extern void add_clubmed_net (struct prefix p, int community_id);
-/* end PEMP */
+#define MAX_ROUTEGAME 3
 
 /* Routing information base. */
 
@@ -86,6 +68,9 @@ struct rib
   /* @PEMP ingress_cost */
   u_int32_t ingress_cost;
   
+  /* @PEMP border router id , only use in case of redistributing igp cost from ospfd to bgpd */
+  struct in_addr bid;
+
   /* @PEMP local community id */
   u_char clubmed_community_id;
 
