@@ -50,14 +50,14 @@ HOW TO INSTALL
 HOW TO CONFIGURE
 ----------------
 
-* To enable PEMP features, we need to include the following commands in both BGP and OSPF configuration files. 
+To enable PEMP features, we need to include the following commands in both BGP and OSPF configuration files. 
 
-  By default, the configuration files of BGP and OSPF is located at /usr/local/etc/bgpd.conf, /usr/local/etc/ospfd.conf respectively.  
+By default, the configuration files of BGP and OSPF is located at /usr/local/etc/bgpd.conf, /usr/local/etc/ospfd.conf respectively.  
 
 1> BGP's configuration
 
-   router bgp <ASN>  
-
+    router bgp <ASN>  
+    
     bgp router-id <IP ADDRESS> 
 
     bgp bestpath as-path multipath-relax
@@ -81,39 +81,39 @@ HOW TO CONFIGURE
 		peer network  <PREFIX> community <PEER COMMUNITY ID>
 
 
-bgp bestpath as-path multipath-relax <br>
+<i>bgp bestpath as-path multipath-relax</i><br>
 &emsp; Enable bgpd to support multipath routing for inter domain traffic. By default, Quagga router does not enable BGP multipath routing, we need to turn on this feature on the configuration file. 
 
-maximum-paths ibgp <NUMBER OF PATH> <br>
+<i>maximum-paths ibgp <NUMBER OF PATH> </i><br>
 &emsp; Specify the maximum number of paths you want to support 
 
-redistribute ospf <br>
+<i>redistribute ospf </i><br>
 &emsp; Allow IGP path cost distribution from the IGP process (in this case is ospfd) to bgpd  
 
-pemp enable <br>
+<i>pemp enable </i><br>
 &emsp; Enable peering equilibrium multipath routing support 
 
-routing-game community local-id <local community id> peer-id <peer community id> configure <coordination policy> <potential threshold> <load balancing> <br>
+<i>routing-game community local-id <local community id> peer-id <peer community id> configure <coordination policy> <potential threshold> <load balancing> </i><br>
 &emsp; Establish a routing game with peering AS for traffic flow from the its local community to peer's community, this flow is defined by the pair local community ID - peer community ID. As in standard BGP, a community is a group of network prefixes. A specified PEMP community pair receives the same PEMP routing decision made, and each community is identified by a unique community ID. The command above also help to initializes the game with input parameters specifying the coordination policy being used, the value of potential threshold (used in the load-balancing distribution computation) as well as the load-balancing mode. These parameters are specified after the "configure" command.By issuing this command, any packets from the local community id destined to the peer community id will be routed according to PEMP.
 
-        <local community id> accepts any integer positive number; the number should be defined by the local AS and communicated as of current practices to the peering AS
-        <peer community id> accepts any integer positive number; the number should be defined by the peering AS and communicated to the local AS to avoid duplication 
-        <coordination policy> is an integer number from 0 to 3, with the following meaning in terms of equilibrium selection policy (see [1]):
-                0: Nash equilibrium multipath (NEMP)
-                1: Pareto-frontier
-                2: Pareto-jump
-                3: Unselfish jump
-        <potential threshold> is any real positive number 
-        <load balancing> only accepts 0 or 1 as value, in which
-                0: Even load-balancing 
-                1: Subflow explicit load-balancing 
+    <local community id> accepts any integer positive number; the number should be defined by the local AS and communicated as of current practices to the peering AS
+    <peer community id> accepts any integer positive number; the number should be defined by the peering AS and communicated to the local AS to avoid duplication 
+    <coordination policy> is an integer number from 0 to 3, with the following meaning in terms of equilibrium selection policy (see [1]):
+        0: Nash equilibrium multipath (NEMP)
+        1: Pareto-frontier
+        2: Pareto-jump
+        3: Unselfish jump
+    <potential threshold> is any real positive number 
+    <load balancing> only accepts 0 or 1 as value, in which
+        0: Even load-balancing 
+        1: Subflow explicit load-balancing 
 
 * NOTE: both local AS and peering AS must agree on the value of community ID assigned for each community they manage. If AS I assigns community ID 2 for its customer network 192.168.2.0/24, so AS II (peer of AS I) must also agree that the community ID 2 is reserved for the network 192.168.2.0/24 at AS I. 
 
   
 2> OSPF's configuration
 
-border router-id <border router's IP address> <br>
+<i>border router-id <border router's IP address> </i><br>
 &emsp; Enable IGP path cost calculation for the path between PEMP enable router and specified border router. If we do not specify the IP address of egress router here, the IGP path cost value of this router could not be calculated and it would not be considered as an option in the routing game. 
 
      
@@ -231,12 +231,13 @@ border router-id <border router's IP address> <br>
 HOW TO RUN
 ----------
 
-* The PEMPR routing process require collecting interior gateway protocol routing costs to feed the MED attribute, so it requires the execution of both bgpd and ospfd daemons. Zebra updates the kernel routing table and it is mandatory to run ospfd. Therefore to run a PEMP enable router you need to run:
-        # zebra -d 
-        # ospfd -d 
-        # bgpd  -d
+The PEMP routing process require collecting interior gateway protocol routing costs to feed the MED attribute, so it requires the execution of both bgpd and ospfd daemons. Zebra updates the kernel routing table and it is mandatory to run ospfd. Therefore to run a PEMP enable router you need to run:
 
-* The result of PEMP routing decision is recorded in a log file with name formatted as "routing_game" followed by "HH:MM:AM/PM" which indicates the timestamp the routing game is built and the decision is made.  
+        # zebra -d
+        # ospfd -d         
+        # bgpd  -d
+        
+The result of PEMP routing decision is recorded in a log file with name formatted as "routing_game" followed by "HH:MM:AM/PM" which indicates the timestamp the routing game is built and the decision is made.  
  
 
 REFERENCES
