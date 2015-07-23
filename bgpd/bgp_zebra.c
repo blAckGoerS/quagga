@@ -296,7 +296,7 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 	/* @PEMP get*/
 	 if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
 	 {
-		 zlog_debug("call to redistribute route");
+		 zlog_debug("call to redistribute add route");
 		 bgp_redistribute_add_pemp((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type,api.ingress_cost,api.bid);
 	 }
@@ -317,7 +317,9 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 		     inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
 		     api.metric);
 	}
-      bgp_redistribute_delete((struct prefix *)&p, api.type);
+
+      zlog_debug("[][][] call to redistribute delete route");
+      bgp_redistribute_delete_pemp((struct prefix *)&p, api.type,api.bid);
     }
 
   return 0;

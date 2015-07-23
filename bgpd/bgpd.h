@@ -71,6 +71,7 @@ struct bgp_master
 #define MAX_COMMUNITY 			2
 #define MAX_PREFIX 				5
 #define PERCENTAGE 				100
+#define INFINITY 				100000
 
 #define ACTIVE 					1
 #define INACTIVE 				0

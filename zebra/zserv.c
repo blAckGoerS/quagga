@@ -440,6 +440,17 @@ zsend_route_multipath (int cmd, struct zserv *client, struct prefix *p,
         }
     }
 
+  /*@PEMP sending route delete command to bgp to delete one route */
+ 	    if ( cmd == ZEBRA_IPV4_ROUTE_DELETE )
+ 	    {
+ 	  	  if ( rib->ingress_cost )
+ 	  	  {
+ 	  		  SET_FLAG (zapi_flags, ZAPI_MESSAGE_INGRESSCOST);
+ 	  		  stream_putl (s, rib->ingress_cost);
+ 	  		  stream_put_in_addr(s,&rib->bid );
+ 	  	  }
+ 	    }
+
   /* Metric */
   if (cmd == ZEBRA_IPV4_ROUTE_ADD || cmd == ZEBRA_IPV6_ROUTE_ADD)
     {
@@ -459,7 +470,6 @@ zsend_route_multipath (int cmd, struct zserv *client, struct prefix *p,
 		// since it help bgpd to easily map between border router id and associated ingress/egress cost
 		stream_put_in_addr(s,&rib->bid );
 	  }
-	  
     }
   
   /* write real message flags value */
@@ -948,7 +958,7 @@ zread_ipv4_delete (struct zserv *client, u_short length)
     api.metric = stream_getl (s);
   else
     api.metric = 0;
-    
+
   rib_delete_ipv4 (api.type, api.flags, &p, nexthop_p, ifindex,
 		   client->rtm_table, api.safi);
   return 0;

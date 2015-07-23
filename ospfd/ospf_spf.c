@@ -1454,7 +1454,7 @@ static int calculate_ingress_route_cost(struct in_addr b_router_id, struct ospf_
 
 	if (b_router_lsa)
 	{
-		zlog_debug ("===== Start build tree with border router as root ======");
+		// zlog_debug ("===== Start build tree with border router as root ======");
 
 		//clear the status of all lsa in the lsdb
 		ospf_lsdb_clean_stat (area->lsdb);
@@ -1505,16 +1505,18 @@ static int calculate_ingress_route_cost(struct in_addr b_router_id, struct ospf_
 			*(v->stat) = LSA_SPF_IN_SPFTREE;
 
 			// NOTE calculate next hop is an important step, it help to record the vertex v the distance
+			/*
 			zlog_debug ("root %s",inet_ntoa((c_area.spf)->id));
 			zlog_debug ("vertex %s",inet_ntoa(v->id));
 			zlog_debug ("distance from root %d",v->distance);
+			*/
 			
 			ospf_vertex_add_parent (v);
 
 			// reach the clubmed router
 			if ( (v->id).s_addr == c_router_id.s_addr )
 			{
-			    zlog_debug ("Found the distance from border router to clubmed, return the ingress cost");
+			    zlog_debug ("Found the distance from border router to core router, return the ingress cost");
 				ingress_cost = v->distance;
 
 				//clean up the candidate list
@@ -1533,7 +1535,7 @@ static int calculate_ingress_route_cost(struct in_addr b_router_id, struct ospf_
 		pqueue_delete (candidate);
 		ospf_canonical_nexthops_free (c_area.spf);
 		list_delete_all_node (&vertex_list);			
-		zlog_debug ("==============");
+		// zlog_debug ("==============");
 	}
 	return -1; // not found the ingress cost from border router to clubmed net yet 
 }
@@ -1554,22 +1556,24 @@ ospf_spf_calculate (struct ospf_area *area, struct route_table *new_table,
   // the normal egress cost calculation is then executed with this router as root
   // check latter area->ospf->pemp_support
   int i;
-  for ( i = 0 ; i < b_router_index ; i++)
+
+  if (area->ospf->pemp_support)
   {
-	struct in_addr b_router_id;
-	b_router_id = b_router_list[i].b_router_id;
-	// compute the ingress cost, the routing cost from border router to core router
-	int ingress_cost = calculate_ingress_route_cost(b_router_id,area);
-	if ( ingress_cost != -1 )
-	{
-		zlog_debug ("ingress cost = %d",ingress_cost);
-		update_b_router_cost(ingress_cost,b_router_id);
-		// update the border router cost array with ingress cost value
-	}
-	else 
-	{
-		zlog_debug ("not found ingress routing cost value yet");	
-	}
+	  for ( i = 0 ; i < b_router_index ; i++)
+	  {
+		struct in_addr b_router_id;
+		b_router_id = b_router_list[i].b_router_id;
+		// compute the ingress cost, the routing cost from border router to core router
+		int ingress_cost = calculate_ingress_route_cost(b_router_id,area);
+		if ( ingress_cost != -1 )
+		{
+			zlog_debug ("Ingress cost = %d",ingress_cost);
+			update_b_router_cost(ingress_cost,b_router_id);
+			// update the border router cost array with ingress cost value
+		}
+		else
+			zlog_debug ("Not found ingress routing cost value yet");
+	  }
   }
   /* end PEMP*/
   

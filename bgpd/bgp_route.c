@@ -55,7 +55,7 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 #include "bgpd/bgp_zebra.h"
 #include "bgpd/bgp_vty.h"
 #include "bgpd/bgp_mpath.h"
-#include "bgpd/routegame.h"
+#include "bgpd/rgl.h"
 
 /* @PEMP global variable */
 struct pemp_route_cost			game_route_cost[MAX_ROUTEGAME][MAX_PEERING_LINK]; 	//game's input
@@ -199,6 +199,7 @@ int get_igp_cost(struct in_addr border_routerID,int *icost, int *ecost)
 	int i = lookup_igp_cost_array(border_routerID);
 	if ( i == NOTFOUND)
 		return 0; // not found cost value for input border router
+
 	*icost = igp_cost[i].incost;
 	*ecost = igp_cost[i].egcost;
 	return 1;
@@ -243,7 +244,11 @@ int update_igp_cost_array(int icost, int ecost,struct in_addr border_router_id)
 		{
 			igp_cost[update_path].incost = icost;
 			igp_cost[update_path].egcost = ecost;
-			igp_cost[update_path].active = ACTIVE;
+			if (icost == INFINITY && ecost == INFINITY)
+				igp_cost[update_path].active = INACTIVE;
+			else
+				igp_cost[update_path].active = ACTIVE;
+
 			return PATH_COST_UPDATED;
 		}
 	}
@@ -494,13 +499,15 @@ int build_game_strategy(int number_of_paths, int g_id,path_cost path[number_of_p
 			n++;
 		}
 	}
-
+	return n;
+	/*
 	// only build game once there are more than 2 paths (converted from the game_route_cost array)
 	// this function is called once receiving the peer_community prefix advertisement with encoded med value
 	if ( n >= 2 )
 		return 1;
 	else
 		return 0;
+	*/
 }
 
 // build the routing game from the game_route_cost array
@@ -512,10 +519,24 @@ int bgp_pemp_game_build(char filename[],int g_id)
 	strategy_profile game[nProfile][nProfile];
 	int nSelected = 0; //number of paths selected for routing
 
+	//check the path cost value of each path choice to decide it is active or not
+	int i;
+	for (i=0;i<game_info[g_id].number_of_path;i++)
+	{
+		if ( game_route_cost[g_id][i].incost != INFINITY && game_route_cost[g_id][i].egcost != INFINITY
+				&& game_route_cost[g_id][i].Pincost && game_route_cost[g_id][i].Pegcost)
+			game_route_cost[g_id][i].active = ACTIVE;
+		else
+			game_route_cost[g_id][i].active = INACTIVE;
+	}
+
+
 	zlog_debug ("Building routing game %d ... ",g_id);
 
-	if ( !build_game_strategy(nProfile,g_id,path) )
+	int n = build_game_strategy(nProfile,g_id,path); //number of active strategy
+	if ( n == 0 )
 		return 0;
+	// accept to build game when the local strategy = 0
 
 	init_game_selected_path(g_id,nProfile);
 
@@ -6709,7 +6730,6 @@ bgp_redistribute_add_pemp(struct prefix *p, const struct in_addr *nexthop,
 	struct listnode *node, *nnode;
 	struct listnode *node2, *nnode2;
 	struct bgp_node *rn;
-	struct bgp_table *table;
 	struct bgp_info *ri;
 	struct peer *peer;
 
@@ -6755,6 +6775,40 @@ bgp_redistribute_add_pemp(struct prefix *p, const struct in_addr *nexthop,
 		  return;
 	  }
   }
+}
+
+void
+bgp_redistribute_delete_pemp (struct prefix *p, u_char type,  struct in_addr b_router)
+{
+  struct bgp *bgp;
+  struct listnode *node, *nnode;
+  struct listnode *node2, *nnode2;
+  afi_t afi;
+  struct bgp_node *rn;
+  struct bgp_info *ri;
+  struct peer *peer;
+
+  if (pemp_support && type == ZEBRA_ROUTE_OSPF)
+  {
+	  // update cost array with ingress and egress cost equal to 0
+	  if ( update_igp_cost_array(INFINITY,INFINITY,b_router) == PATH_COST_UPDATED )
+	  {
+		  // decrease the number of border router by 1
+		  //number_of_border_router--;
+		  // rebuilt the game due to
+		  zlog_debug ( "Rebuilt game due to IGP path cost change");
+		  bgp_pemp_game_rebuilt(b_router);
+		  //re send route advertisement with updated med
+
+		  for (ALL_LIST_ELEMENTS (bm->bgp, node, nnode, bgp))
+			  for (ALL_LIST_ELEMENTS (bgp->peer, node2, nnode2, peer))
+				  if ( peer->sort == BGP_PEER_IBGP && (peer->remote_id).s_addr == b_router.s_addr )
+					  pemp_re_announce_route(peer);
+	  }
+  }
+
+  bgp_redistribute_delete(p,type);
+
 }
 /* end PEMP */
 

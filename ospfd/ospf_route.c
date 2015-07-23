@@ -478,9 +478,6 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
     zlog_debug ("ospf_intra_add_stub(): processing route to %s/%d",  
 	       inet_ntoa (p.prefix), p.prefixlen);
 		   
-  zlog_debug ("ospf_intra_add_stub(): processing route to %s/%d",  
-	       inet_ntoa (p.prefix), p.prefixlen);
-		   
   /* (1) Calculate the distance D of stub network from the root.  D is
      equal to the distance from the root to the router vertex
      (calculated in stage 1), plus the stub network link's advertised
@@ -491,9 +488,6 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
     zlog_debug ("ospf_intra_add_stub(): calculated cost is %d + %d = %d", 
 	       v->distance, ntohs(link->m[0].metric), cost);
   
-   zlog_debug ("	calculated cost is %d + %d = %d", 
-	       v->distance, ntohs(link->m[0].metric), cost);
-		   
   /* PtP links with /32 masks adds host routes to remote, directly
    * connected hosts, see RFC 2328, 12.4.1.1, Option 1.
    * Such routes can just be ignored for the sake of tidyness.
