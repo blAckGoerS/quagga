@@ -75,6 +75,7 @@ u_int8_t 						number_of_peer_community;
 
 char 							OUTPUT_FILE[] = "routing_game";
 u_int8_t 						pemp_support;
+u_int8_t 						core_router;
 u_int8_t 						fw_mark_flag;
 
 
@@ -178,7 +179,10 @@ void init_game_selected_path(int g_id, int n_path)
 {
 	int i;
 	for (i=0;i<n_path;i++)
+	{
 		selected_path[g_id][i].status = INACTIVE;
+		selected_path[g_id][i].tload = 0;
+	}
 }
 
 // return the index in the igp_cost array of the input border_routerID
@@ -357,7 +361,7 @@ int update_routing_cost_array(coord_cost4 *rc,struct in_addr received_IF,struct 
 	else 
 	{
 		game_route_cost[g_id][update_path].active = INACTIVE;
-		zlog_debug ("Path is not active due to missing local IGP cost");
+		// zlog_debug ("Path is not active due to missing local IGP cost");
 	}
 	return update_existing_path;
 }
@@ -370,7 +374,7 @@ int bgp_pemp_game_rebuilt( struct in_addr border_routerID)
 	int game_count = 0; // count the number of game that has been built or rebuilt due to IGP path cost update
 	int g_id;
 
-	//collect the ingress and egress cost associated with this border router
+	// collect the ingress and egress cost associated with this border router
 	int ic,ec;
 	if ( !get_igp_cost(border_routerID,&ic,&ec) )
 		return 0;
@@ -394,16 +398,22 @@ int bgp_pemp_game_rebuilt( struct in_addr border_routerID)
 				// rebuild the routing game if game is already build
 				if (game_info[g_id].status == GAME_BUILT)
 				{
+					// initialize the selected path array
+					// init_game_selected_path(g_id,nProfile);
+
 					if ( bgp_pemp_game_build(OUTPUT_FILE,g_id) );
 						game_count++;
-				// if the game has not been built yet
-				}
+
+				}// if the game has not been built yet
 				else
 				{
 					// peer's ingress and egress cost are available but due to missing the local igp path cost, so game route cost is not active
 					if ( game_route_cost[g_id][i].Pincost && game_route_cost[g_id][i].Pegcost )
 					{
 						game_route_cost[g_id][i]. active = ACTIVE;
+
+						// initialize the selected path array
+						//init_game_selected_path(g_id,nProfile);
 
 						if ( bgp_pemp_game_build(OUTPUT_FILE,g_id) )
 						{
@@ -421,7 +431,7 @@ int bgp_pemp_game_rebuilt( struct in_addr border_routerID)
 	return game_count; // return the number of game that successfully build/rebuild
 }
 
-
+// TODO take care of the withdraw
 int withdraw_routing_cost_array_peercost(int g_id,int current_pID,struct in_addr received_IF)
 {
 
@@ -444,7 +454,7 @@ int withdraw_routing_cost_array_peercost(int g_id,int current_pID,struct in_addr
 	return ret;
 }
 
-// decode received med from border router and update game_route_cost
+// Decode the received MED from border router and update game_route_cost array
 // update with decoded value from med attribute together with the associated IGP cost (ingress and egress cost)
 int bgp_med_decode(struct peer *peer,u_int32_t med,struct prefix *p,int g_id)
 {
@@ -484,8 +494,10 @@ int build_game_strategy(int number_of_paths, int g_id,path_cost path[number_of_p
 	int i;
 	int n=0;
 	zlog_debug ("Processing available strategies ...... ");
+
 	for (i=0;i<number_of_paths;i++)
 	{
+		zlog_debug ("i =%d ",i);
 		if (game_route_cost[g_id][i].active)
 		{
 			path[n].path_id = i;  //using id to trace back to the game_routing_cost array
@@ -494,11 +506,13 @@ int build_game_strategy(int number_of_paths, int g_id,path_cost path[number_of_p
 			path[n].Pingresscost 	= game_route_cost[g_id][i].Pincost;
 			path[n].Pegresscost 	= game_route_cost[g_id][i].Pegcost;
 
+			zlog_debug (" path ID %d \n",i);
 			zlog_debug ("%d %d %d %d",game_route_cost[g_id][i].incost,game_route_cost[g_id][i].egcost,
 					game_route_cost[g_id][i].Pincost,game_route_cost[g_id][i].Pegcost);
 			n++;
 		}
 	}
+
 	return n;
 	/*
 	// only build game once there are more than 2 paths (converted from the game_route_cost array)
@@ -536,7 +550,10 @@ int bgp_pemp_game_build(char filename[],int g_id)
 	int n = build_game_strategy(nProfile,g_id,path); //number of active strategy
 	if ( n == 0 )
 		return 0;
-	// accept to build game when the local strategy = 0
+	// accept to build game when the local strategy = 1
+
+	nProfile = n;
+	// added on 20th Aug to correct the routing decision in case of losing connection to peering links
 
 	init_game_selected_path(g_id,nProfile);
 
@@ -871,6 +888,7 @@ bgp_med_value (struct attr *attr, struct bgp *bgp)
     }
 }
 
+
 /* Compare two bgp route entity.  br is preferable then return 1. */
 static int
 bgp_info_cmp (struct bgp *bgp, struct bgp_info *new, struct bgp_info *exist,
@@ -980,6 +998,12 @@ bgp_info_cmp (struct bgp *bgp, struct bgp_info *new, struct bgp_info *exist,
     return 0;
 
   /* 6. MED check. */
+
+  /*
+   * PEMP TODO ignore MED check if PEMP is enabled and prefix belong to peer community
+   * since this MED is encoded and its value could not be used for comparing
+   */
+
   internal_as_route = (aspath_count_hops (newattr->aspath) == 0
 		      && aspath_count_hops (existattr->aspath) == 0);
   confed_as_route = (aspath_count_confeds (newattr->aspath) > 0
@@ -1025,6 +1049,7 @@ bgp_info_cmp (struct bgp *bgp, struct bgp_info *new, struct bgp_info *exist,
   if (newm < existm)
     ret = 1;
   if (newm > existm)
+
     ret = 0;
 
   /* 9. Maximum path check. */
@@ -1357,7 +1382,7 @@ bgp_announce_check (struct bgp_info *ri, struct peer *peer, struct prefix *p,
   int transparent;
   int reflect;
   struct attr *riattr;
-  zlog_debug (" bgp_announce_check ");
+
   from = ri->peer;
   filter = &peer->filter[afi][safi];
   bgp = peer->bgp;
@@ -1502,15 +1527,24 @@ bgp_announce_check (struct bgp_info *ri, struct peer *peer, struct prefix *p,
   // only encode med when the prefix is belong to local community and it is announced to border router via iBGP session
   if (is_local_community(p) && peer->sort == BGP_PEER_IBGP)
   {
-	  zlog_debug ("Setting med .... peer's router ip %s", inet_ntoa(peer->remote_id) ); //1.6* (next hop)
+
 	  int icost,ecost;
 	  //get the IGP distance (ingress and egress cost) for the border router
 	  if (get_igp_cost(peer->remote_id,&icost,&ecost))
 			attr->med = bgp_med_encode(icost,ecost);
 	  	  	// set med attribute equal to the encoded value
+
+	  zlog_debug ("ADVERTISING route to router %s with med %d ", inet_ntoa(peer->remote_id), attr->med );
   }
-  /* end PEMP */
   
+  // at core router, we do not advertise the prefixes that not belong to the local community to border router
+  // added on 29 Aug
+  if (core_router && !is_local_community(p) && peer->sort == BGP_PEER_IBGP)
+  {
+	 // zlog_debug ("Skip that prefix ");
+	  return 0;
+  }
+
   /* If local-preference is not set. */
   if ((peer->sort == BGP_PEER_IBGP
        || peer->sort == BGP_PEER_CONFED)
@@ -1533,7 +1567,7 @@ bgp_announce_check (struct bgp_info *ri, struct peer *peer, struct prefix *p,
 
   /* Remove MED if its an EBGP peer - will get overwritten by route-maps */
   /* @PEMP if PEMP is enable we still keep MED and bypass the route-maps */
-  /* this code help border router to foward med value it learnt from iBGP session with core router */
+  /* This code help border router to forward med value it learned from iBGP session with core router */
   if ( !pemp_support )
   {
 	  if (peer->sort == BGP_PEER_EBGP && attr->flag & ATTR_FLAG_BIT (BGP_ATTR_MULTI_EXIT_DISC))
@@ -1542,6 +1576,13 @@ bgp_announce_check (struct bgp_info *ri, struct peer *peer, struct prefix *p,
 			  attr->flag &= ~(ATTR_FLAG_BIT (BGP_ATTR_MULTI_EXIT_DISC));
 	  }
   }
+
+  // For implementing cold potato routing
+  // 	@Border router - need to redistribute route from OSPF then distributed route will be advertised to peering AS with MED = IGP cost
+  // 	@Core router - we do not need to redistribute OSPF route, or static advertising . Border router can handle that
+  // 		If we do redistribute OSPF or static advertising, the value of MED forwarding to border router is 0
+  // remember to deactivate pemp enable on Border router configuration
+
   
   /* next-hop-set */
   if (transparent || reflect
@@ -1633,7 +1674,7 @@ bgp_announce_check (struct bgp_info *ri, struct peer *peer, struct prefix *p,
     attr->aspath = aspath_empty_get ();
 
   /* Route map & unsuppress-map apply. */
-  /* @PEMP if pemp is enable we do not apply route map  */
+  /* @PEMP if PEMP is enable we do not apply route map  */
     if ( !pemp_support )
     {
     	if (ROUTE_MAP_OUT_NAME (filter)
@@ -1903,8 +1944,6 @@ bgp_best_selection (struct bgp *bgp, struct bgp_node *rn,
 	bgp_mp_list_init (&mp_list);
 	do_mpath = (mpath_cfg->maxpaths_ebgp != BGP_DEFAULT_MAXPATHS ||
 	      mpath_cfg->maxpaths_ibgp != BGP_DEFAULT_MAXPATHS);
-
-	zlog_debug("bgp best selection");
   
 	/* bgp deterministic-med */
 	new_select = NULL;
@@ -1963,7 +2002,6 @@ bgp_best_selection (struct bgp *bgp, struct bgp_node *rn,
 	// This route will be added to the default routing table
 	// TODO define the condition for executing this function, since we are not doing it for all
 	// this only be performed when PEMP is enable and it also have some impact on the paths_eq value
-
 	best_select = NULL;
 	for (ri = rn->info; (ri != NULL) && (nextri = ri->next, 1); ri = nextri)
 	{
@@ -2027,7 +2065,8 @@ bgp_best_selection (struct bgp *bgp, struct bgp_node *rn,
 		// + The corresponding game is built: this condition also include p is belong to peer community
 		if (do_mpath && game_info[game_id].status == GAME_BUILT )
 		{
-			zlog_debug("Check route via %s",inet_ntoa(ri->peer->nexthop.v4));
+			zlog_debug("Check route via %s with med %d ",inet_ntoa(ri->peer->nexthop.v4), ri->attr->med);
+
 			int i;
 			char ipaddr[16];
 			strcpy(ipaddr,inet_ntoa(ri->peer->nexthop.v4));
@@ -2125,7 +2164,6 @@ bgp_best_selection (struct bgp *bgp, struct bgp_node *rn,
 	{
 		if (!bgp_flag_check (bgp, BGP_FLAG_DETERMINISTIC_MED))
 			bgp_info_mpath_update (rn, new_select, old_select, &mp_list, mpath_cfg);
-		zlog_debug("update_multipath");
 	}
  
  
@@ -2146,7 +2184,7 @@ bgp_process_announce_selected (struct peer *peer, struct bgp_info *selected,
   struct prefix *p;
   struct attr attr;
   struct attr_extra extra;
-  zlog_debug("bgp_process_announce_selected");
+  //zlog_debug("bgp_process_announce_selected");
   p = &rn->p;
   
   /* Announce route to Established peer. */
@@ -2171,7 +2209,6 @@ bgp_process_announce_selected (struct peer *peer, struct bgp_info *selected,
       /* Announcement to peer->conf.  If the route is filtered,
          withdraw it. */
         if (selected && bgp_announce_check (selected, peer, p, &attr, afi, safi))
-          //zlog_debug (" Sending update to peer with med = %d ",attr.med);
           bgp_adj_out_set (rn, peer, p, &attr, afi, safi, selected);
         else
           bgp_adj_out_unset (rn, peer, p, afi, safi);
@@ -2277,25 +2314,24 @@ bgp_process_main (struct work_queue *wq, void *data)
 
   /* @PEMP */
 
-  // check the marking flag - if OFF do marking rule else skip
-  // go through all the customer prefix in local community list and peer community list
-  // relying on game info to execute the fw marking rule with source dest and local community id
-  // turn the flag ON
-  // flag is a global variable
-  // related to remove community via vty , we could also define a NO [network prefix] [community id] command
-  // to remove a prefix - however the other peer need to do the same - there no way to propagate changes
-  // we accept for this now - since the changes on community need the agreement from both sides
+  /*
+   * Check the marking flag - if OFF do marking rule else skip
+   * go through all the prefixes in local community list as well as peer community list
+   * relying on game info to execute the fw_marking rule with source, destination and local community id
+   * turn the flag ON, flag is a global variable
+   *
+   * Note: To remove a prefix from a local community, we could also define a command like "NO [network prefix] [community id]"
+   * And at the other peer, operator need to manually remove this prefix from its peer community - there is no way for propagating changes in the configuration
+   * We accept for this now - since the changes on community need the agreement from both sides
+   */
 
-  zlog_debug("bgp process main ");
   if ( !fw_mark_flag )
   {
 	  int i;
-
 	  for ( i = 0; i < number_of_game; i++)
 	  {
 		  if (game_info[i].status == ACTIVE)
 		  {
-
 			  int cid, pid;
 			  int j,k;
 			  cid = lookup_community (game_info[i].community_id,number_of_community,local_community);
@@ -2316,8 +2352,15 @@ bgp_process_main (struct work_queue *wq, void *data)
 
   /* Nothing to do. */
   if (old_select && old_select == new_select)
-    {
-	  //zlog_debug("old_select && old_select == new_select");
+  {
+	  // Added on 29 Aug
+	  // At border router, once it received the UPDATE from core router with new MED
+	  // this new MED has not been propagated to its peer - it may related to the check here
+	  // since new and old selected route is the same, the only different is the MED, somehow this route is not re advertising to peer
+	  // take care of the BGP_INFO_ATTR_CHANGED flag
+	  // if MED change - this flag need to be on and new UPDATE should be sent to peer
+
+	  //zlog_debug(" ");
       if (! CHECK_FLAG (old_select->flags, BGP_INFO_ATTR_CHANGED))
         {
           if (CHECK_FLAG (old_select->flags, BGP_INFO_IGP_CHANGED) ||
@@ -2329,6 +2372,7 @@ bgp_process_main (struct work_queue *wq, void *data)
           return WQ_SUCCESS;
         }
     }
+
 
   if (old_select)
     bgp_info_unset_flag (rn, old_select, BGP_INFO_SELECTED);
@@ -2342,7 +2386,7 @@ bgp_process_main (struct work_queue *wq, void *data)
   /* Check each BGP peer. */
   for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, peer))
     {
-	  /* @PEMP sending route advertisement to each peer */
+	  /* Sending route advertisement to each peer */
 	  bgp_process_announce_selected (peer, new_select, rn, afi, safi);
     }
 
@@ -2350,10 +2394,9 @@ bgp_process_main (struct work_queue *wq, void *data)
   if ((safi == SAFI_UNICAST || safi == SAFI_MULTICAST) && (! bgp->name &&
       ! bgp_option_check (BGP_OPT_NO_FIB)))
     {
-	  zlog_debug ("FIB update");
-      if (new_select 
-	  && new_select->type == ZEBRA_ROUTE_BGP 
-	  && new_select->sub_type == BGP_ROUTE_NORMAL)
+	  if (new_select
+			  && new_select->type == ZEBRA_ROUTE_BGP
+			  && new_select->sub_type == BGP_ROUTE_NORMAL)
     	  bgp_zebra_announce (p, new_select, bgp, safi);
       else
 	{
@@ -2835,6 +2878,7 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
 		if (ri->peer == peer && ri->type == type && ri->sub_type == sub_type)
 			break;
 	  	  	// previously received route
+	  zlog_debug ("OLD ROUTE RECEIVED ");
   }
   else
   {
@@ -2848,9 +2892,13 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
 			  else
 			  {
 				  // previously received route but with different med
-				  // zlog_debug ("re announcement received with different med ");
+				  zlog_debug ("re announcement received with different med ");
 				  pemp_reannounce_received = 1;
-				  ri = NULL;
+
+				  //update med
+				  ri->attr->med = attr->med;  // added 29th Aug - make sure that current ri in the routing table is udpate with new MED
+
+				  ri = NULL; // we assign that to indicate this one is not an implicit withdraw
 				  break;
 			  }
 
@@ -3102,8 +3150,7 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
   bgp_aggregate_increment(bgp, p, new, afi, safi);
   
   /* @PEMP decode */
-  // TODO not decode for all received prefixes
-  // if received prefixes belong to same peer community, do not decode med
+  zlog_debug(" RECEIVING ADVERTISEMENT for  %s/%d with med %d from %s ",inet_ntop(p->family, &p->u.prefix, buf, SU_ADDRSTRLEN),p->prefixlen,attr->med, peer->host);
 
   // find the community id for received prefix from the list of defined peer community
   int community_id = find_community_id(p,number_of_peer_community,peer_community);
@@ -3114,6 +3161,8 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
   // + the med attribute is available
   if (community_id != NOTFOUND && peer->sort == BGP_PEER_IBGP && attr->med)
   {
+	  // it seems like that piece of code is for handling MED change in peer side at core router - not the border router
+	  // with our current sistuation where, border router could not forward changes to peer , it should not be executed
 	  u_int32_t med = attr->med;
 
 	  //determine which game this peer community participate
@@ -3125,12 +3174,77 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
 				  game_info[game_id].status = GAME_BUILT; //update status for corresponding game
 
 	  if ( pemp_reannounce_received )
-		  return 0;
+	  {
+		  zlog_debug(" PROCESSING CHANGE AFTER GAME REBUILD");
+		  bgp_process (bgp, rn, afi, safi);
+		  return 0; // process but not register the route - we only do the update , not adding new route entry
+
+		  // we not register new BGP information but we should process change [added on 19 Aug]
+		  // why we not register the new BGP information ? -- because we do not want to added a new route in the routing table (route with different MED)
+		  // if we do not include bgp_process here, the change will be not announced to other router
+		  // return 0;
+		  // added 29 Aug -- not return here -- rebuild game - register new bgp info and process as usual
+		  // at core router == if we do register and process normally there will be two route added in to routing table
+		  // route with old med and route with new med are available in the routing table at the same time === problem
+		  // that why we should update the MED only without register new route
+
+		  // TODO need to carefully consider : we need to register new route or not
+		  // what if we register and what if we do not register ? -- any differences
+	  }
 	  // If a re announcement received, we do not need to register a new BGP information, since the received route is already available before
 	  // so we just need to rebuild the game, if we do create a new bgp information, a duplicated ri will be added in routing table
 	  // new routing decision will update by the bgp_process which is executed frequently
 
+	  // re announce should also be handled by border router - border router is responsible for advertising the new MED to its peer
+	  // currently we only take care of the re announce @ core router [added on 19th Aug]
+	  // TODO add support for re announce @ core router
   }
+
+
+  // border router handle and forward MED change to other peer [added on 28 Aug]
+  // now just for testing purpose - since we need to consider the case that core router also do the same
+  // different between core router and border router is only the community id
+  // border router handle MED change
+   if ( !core_router && attr->med && pemp_reannounce_received)
+   {
+	   if ( peer->sort == BGP_PEER_IBGP)   // if the re announcement is received from the local core router
+	   {
+     	  //bgp_info_set_flag (rn, new, BGP_INFO_ATTR_CHANGED);
+   	  	  zlog_debug(" Border router forwarding new MED to peer  ");
+   	  	  struct listnode *node, *nnode;
+   	  	  struct peer *tmp_peer;
+   	  	  for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, tmp_peer))
+   	  	  {
+   	  		  /* Sending route advertisement to each peer */
+   	  		  if (tmp_peer->sort == BGP_PEER_EBGP)
+   	  			  bgp_process_announce_selected (tmp_peer, new, rn, afi, safi);
+   	  	  }
+   	  	// it works but
+   	  	// TODO it should return here after sending the announcement or continue with the last bgp_process to update the local routing table ?
+   	  	//bgp_process (bgp, rn, afi, safi); // we not register new BGP information but we should process change [added on 19 Aug]
+   	  	// if we do not include bgp_process here, the change will be not announced to other router
+   	  	//return 0;
+	   }
+	   else // the re announcement is received from border router from peering AS
+	   {
+ 		  zlog_debug(" Border router forwarding new MED to its core router  ");
+ 		  struct listnode *node, *nnode;
+ 		  struct peer *tmp_peer;
+ 		  for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, tmp_peer))
+ 		  {
+ 			  /* Sending route advertisement to each peer */
+ 			  if (tmp_peer->sort == BGP_PEER_IBGP)
+ 				  bgp_process_announce_selected (tmp_peer, new, rn, afi, safi);
+ 			  //TODO all its IBGP peer will be updated - we should add a condition to make sure only the PEMP core router
+ 			  // that participate in the game is updated
+ 		  }
+	   }
+	   bgp_process (bgp, rn, afi, safi);
+	   return 0;
+   }
+   // consider to change here for border router - just need to process the announcement and not adding new route in the routing table - same as core router
+   // do not register the received route
+
   /* end PEMP decode */
 	 
   /* Register new BGP information. */
@@ -3146,7 +3260,7 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
 
   /* Process change. */
   bgp_process (bgp, rn, afi, safi);
-
+  zlog_debug(" Done the bgp process "); //checking route re announcement at border router
   return 0;
 
   /* This BGP update is filtered.  Log the reason then update BGP
@@ -3386,7 +3500,7 @@ pemp_re_announce_route (struct peer *peer)
 		  {
 			  if (ri->sub_type == BGP_ROUTE_STATIC)
 			  {
-				  zlog_debug("sending re announcement");
+				  zlog_debug("Sending re announcement");
 				  if (bgp_announce_check (ri, peer, &rn->p, &attr, AFI_IP, SAFI_UNICAST ) )
 					  bgp_adj_out_set (rn, peer, &rn->p, &attr, AFI_IP, SAFI_UNICAST, ri);
 				  else
@@ -3415,14 +3529,12 @@ bgp_announce_table (struct peer *peer, afi_t afi, safi_t safi,
   /* It's initialized in bgp_announce_[check|check_rsclient]() */
   attr.extra = &extra;
 
-  /* @PEMP testing */
-  zlog_debug("bgp announce table");
   for (rn = bgp_table_top (table); rn; rn = bgp_route_next(rn))
     for (ri = rn->info; ri; ri = ri->next)
       if (CHECK_FLAG (ri->flags, BGP_INFO_SELECTED) && ri->peer != peer)
       {
     	  /* @PEMP testing */
-    	  zlog_debug("announce route ");
+    	  // zlog_debug("announce route ");
     	  if (ri->sub_type == BGP_ROUTE_STATIC)
     		  zlog_debug("BGP Static Route");
     	  /* end PEMP */
@@ -4853,6 +4965,7 @@ int routing_game_init(struct bgp *bgp)
 	number_of_community 			= 0;
 	number_of_peer_community 		= 0;
 	number_of_game 					= 0;
+	core_router 					= 0;
 
 	// most of these new attributes add to bgp structure to support the configuration write command defined in bgpd.c
 	bgp->local_community 			= &local_community[0];
@@ -4954,6 +5067,7 @@ DEFUN (bgp_pemp_community,
 	update_game_configure(0,0,0,j,game_info);
 	number_of_game++;
 	bgp->number_of_game++;
+	core_router = ACTIVE;
 
 	/* @PEMP TODO */
 	//call to init the global routing cost array
@@ -5046,6 +5160,7 @@ DEFUN (bgp_pemp_community_configure,
 	update_game_configure(policy,threshold,uLB,j,game_info);
 	number_of_game++;
 	bgp->number_of_game++;
+	core_router = ACTIVE;
 
 	return CMD_SUCCESS;
 }

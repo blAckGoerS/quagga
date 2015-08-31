@@ -809,7 +809,8 @@ int path_selection(strategy_profile g[N][N],path_cost s[],routing_path selectedp
 			if (g[i][j].status)
 			{
 				k = (p == LOCAL) ? i : j;  //if (p == 1) k=i; else k=j;
-				selectedpath[npath].id 		= k;
+				//selectedpath[npath].id 		= k;
+				selectedpath[npath].id 		= s[k].path_id; // correct on 20th August - to make the correct link between game route cost and selected path array
 				selectedpath[npath].freq	= 1;
 				selectedpath[npath].tload 	= 0;
 				selectedpath[npath].status 	= 1;

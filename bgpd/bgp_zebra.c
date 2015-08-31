@@ -293,7 +293,7 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 				inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
 				api.metric);
 		}
-	/* @PEMP get*/
+	/* @PEMP redistribute route from the kernel to bgpd - the purpose is to collect and update IGP cost */
 	 if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
 	 {
 		 zlog_debug("call to redistribute add route");
@@ -301,6 +301,7 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 			   api.metric, api.type,api.ingress_cost,api.bid);
 	 }
 	 else	 
+		// normal process
 		bgp_redistribute_add((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type);
     }
