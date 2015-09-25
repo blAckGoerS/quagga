@@ -293,31 +293,54 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
 				inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
 				api.metric);
 		}
+
 	/* @PEMP redistribute route from the kernel to bgpd - the purpose is to collect and update IGP cost */
 	 if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
 	 {
+		 /* PEMP test */
+		 char buf[2][INET_ADDRSTRLEN];
+		 zlog_debug("Zebra rcvd: IPv4 route add %s %s/%d nexthop %s metric %u ingress cost = %u ",
+				 zebra_route_string(api.type),
+				 inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
+				 p.prefixlen,
+				 inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
+				 api.metric, api.ingress_cost);
+		 /* end test */
+
 		 zlog_debug("call to redistribute add route");
 		 bgp_redistribute_add_pemp((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type,api.ingress_cost,api.bid);
+
+
 	 }
 	 else	 
 		// normal process
 		bgp_redistribute_add((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type);
     }
-  else
+  else // not a ZEBRA_IPV4_ROUTE_ADD --- it is a ROUTE DELETE instead
     {
-      if (BGP_DEBUG(zebra, ZEBRA))
-	{
-	  char buf[2][INET_ADDRSTRLEN];
-	  zlog_debug("Zebra rcvd: IPv4 route delete %s %s/%d "
+      	  if (BGP_DEBUG(zebra, ZEBRA))
+      	  {
+      		  char buf[2][INET_ADDRSTRLEN];
+      		  zlog_debug("Zebra rcvd: IPv4 route delete %s %s/%d "
 		     "nexthop %s metric %u",
 		     zebra_route_string(api.type),
 		     inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
 		     p.prefixlen,
 		     inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
 		     api.metric);
-	}
+      	  }
+
+
+      	char buf[2][INET_ADDRSTRLEN];
+      	      		  zlog_debug("Zebra rcvd: IPv4 route delete %s %s/%d "
+      			     "nexthop %s metric %u",
+      			     zebra_route_string(api.type),
+      			     inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
+      			     p.prefixlen,
+      			     inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
+      			     api.metric);
 
       zlog_debug("[][][] call to redistribute delete route");
       bgp_redistribute_delete_pemp((struct prefix *)&p, api.type,api.bid);

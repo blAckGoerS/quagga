@@ -1446,7 +1446,7 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
    it will return the distance as ingress cost and terminate the function */
 static int calculate_ingress_route_cost(struct in_addr b_router_id, struct ospf_area *area)
 {
-	struct in_addr c_router_id; // clubmed router id = ip address of this router
+	struct in_addr c_router_id; // core router id = ip address of this router
 	int ingress_cost = 0;
 	struct ospf_lsa *b_router_lsa;
 	b_router_lsa = ospf_lsa_lookup_by_id(area,OSPF_ROUTER_LSA,b_router_id);

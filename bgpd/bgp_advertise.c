@@ -297,7 +297,11 @@ bgp_adj_out_unset (struct bgp_node *rn, struct peer *peer, struct prefix *p,
       adv->adj = adj;
 
 	  /* PEMP test */
-	   zlog_debug ("bgp_adj_out_unset send advertisement");
+	   zlog_debug ("bgp_adj_out_unset send advertisement to %s",peer->host);
+	   char buf[BUFSIZ];
+	   zlog_debug (" withdraw network %s/%d",
+	                    inet_ntop (p->family, &p->u.prefix, buf, SU_ADDRSTRLEN),
+	                    p->prefixlen);
 	   
       /* Add to synchronization entry for withdraw announcement.  */
       FIFO_ADD (&peer->sync[afi][safi]->withdraw, &adv->fifo);

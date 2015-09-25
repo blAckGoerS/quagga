@@ -1545,9 +1545,11 @@ _netlink_route_build_multipath(
         )
 {
 
-
+  zlog_debug("netlink_route_multipath() 0");
 
   rtnh->rtnh_len = sizeof (*rtnh);
+
+  zlog_debug("netlink_route_multipath() 1/2" );
   rtnh->rtnh_flags = 0;
   rtnh->rtnh_hops = 0;
   rta->rta_len += rtnh->rtnh_len;
@@ -1939,6 +1941,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 						nexthop_num++;
 
 						_netlink_route_debug(cmd, p, nexthop, routedesc, family);
+						zlog_debug ("Done debug  ");
 						_netlink_route_build_multipath(routedesc, bytelen, nexthop, rta, rtnh, &src);
 
 						zlog_debug ("Nexthop number %d ",nexthop_num);
