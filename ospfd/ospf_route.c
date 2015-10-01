@@ -464,6 +464,10 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
   struct ospf_interface *oi;
   struct ospf_path *path;
 
+
+  zlog_debug ("ospf_intra_add_stub(): TESTINGGGGGGGGGGGGGGGGGGGGGGGGGGGGG");
+
+
   if (IS_DEBUG_OSPF_EVENT)
     zlog_debug ("ospf_intra_add_stub(): Start");
 
@@ -475,8 +479,8 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
   apply_mask_ipv4 (&p);
 
   if (IS_DEBUG_OSPF_EVENT)
-    zlog_debug ("ospf_intra_add_stub(): processing route to %s/%d",  
-	       inet_ntoa (p.prefix), p.prefixlen);
+ //   zlog_debug ("ospf_intra_add_stub(): processing route to %s/%d",
+//	       inet_ntoa (p.prefix), p.prefixlen);
 		   
   /* (1) Calculate the distance D of stub network from the root.  D is
      equal to the distance from the root to the router vertex
@@ -485,8 +489,8 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
   cost = v->distance + ntohs (link->m[0].metric);
 
   if (IS_DEBUG_OSPF_EVENT)
-    zlog_debug ("ospf_intra_add_stub(): calculated cost is %d + %d = %d", 
-	       v->distance, ntohs(link->m[0].metric), cost);
+ //   zlog_debug ("ospf_intra_add_stub(): calculated cost is %d + %d = %d",
+	//       v->distance, ntohs(link->m[0].metric), cost);
   
   /* PtP links with /32 masks adds host routes to remote, directly
    * connected hosts, see RFC 2328, 12.4.1.1, Option 1.
@@ -595,7 +599,7 @@ ospf_intra_add_stub (struct route_table *rt, struct router_lsa_link *link,
   if (icost)
   {
 	  or->ingress_cost = icost;
-	  zlog_debug ("Add ingress cost to ospf route id %s with ingress cost %d egress cost = %d ",inet_ntoa(or->id),or->ingress_cost,or->cost);
+	  // zlog_debug ("Add ingress cost to ospf route id %s with ingress cost %d egress cost = %d ",inet_ntoa(or->id),or->ingress_cost,or->cost);
   }
   /* end PEMP */
   
@@ -659,7 +663,6 @@ ospf_route_table_dump (struct route_table *rt)
   zlog_debug ("					Hop(s)	 Router(s)");
 #endif /* 0 */
 
-  zlog_debug ("========== OSPF routing table ==========");
   for (rn = route_top (rt); rn; rn = route_next (rn))
     if ((or = rn->info) != NULL)
       {
@@ -683,7 +686,6 @@ ospf_route_table_dump (struct route_table *rt)
 		     ospf_path_type_str[or->path_type],
 		     or->cost);
       }
-  zlog_debug ("========================================");
 }
 
 /* This is 16.4.1 implementation.
@@ -864,7 +866,7 @@ ospf_route_add (struct route_table *rt, struct prefix_ipv4 *p,
   if (rn->info)
     {
       if (IS_DEBUG_OSPF_EVENT)
-	zlog_debug ("ospf_route_add(): something's wrong !");
+    	  zlog_debug ("ospf_route_add(): something's wrong !");
       route_unlock_node (rn);
       return;
     }
@@ -877,6 +879,8 @@ ospf_prune_unreachable_networks (struct route_table *rt)
 {
   struct route_node *rn, *next;
   struct ospf_route *or;
+
+  zlog_debug ("Pruning unreachable networks");
 
   if (IS_DEBUG_OSPF_EVENT)
     zlog_debug ("Pruning unreachable networks");
@@ -900,7 +904,6 @@ ospf_prune_unreachable_networks (struct route_table *rt)
 	}
     }
 }
-
 void
 ospf_prune_unreachable_routers (struct route_table *rtrs)
 {
@@ -908,6 +911,8 @@ ospf_prune_unreachable_routers (struct route_table *rtrs)
   struct ospf_route *or;
   struct listnode *node, *nnode;
   struct list *paths;
+
+  zlog_debug ("Pruning unreachable routers");
 
   if (IS_DEBUG_OSPF_EVENT)
     zlog_debug ("Pruning unreachable routers");
