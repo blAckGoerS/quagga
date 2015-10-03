@@ -260,7 +260,7 @@ bgp_adj_out_set (struct bgp_node *rn, struct peer *peer, struct prefix *p,
     adv->baa = baa_new ();
   adv->adj = adj;
 
-  zlog_debug ("peer status ",peer->status);
+  zlog_debug ("peer status %d",peer->status);
 
   /* Add new advertisement to advertisement attribute list. */
   bgp_advertise_add (adv->baa, adv);
