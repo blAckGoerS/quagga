@@ -359,7 +359,10 @@ int update_routing_cost_array(coord_cost4 *rc,struct in_addr received_IF,struct 
 	{
 		game_route_cost[g_id][update_path].incost = icost;
 		game_route_cost[g_id][update_path].egcost = ecost;
-		game_route_cost[g_id][update_path].active = ACTIVE;
+		if ( icost == INFINITY || ecost == INFINITY )
+			game_route_cost[g_id][update_path].active = INACTIVE;
+		else
+			game_route_cost[g_id][update_path].active = ACTIVE;
 		//retrieving enough cost value, active the path cost entry. Only active entry is consider while building game's strategy
 	}
 	else 
@@ -526,6 +529,7 @@ int bgp_pemp_game_build(char filename[],int g_id)
 	int i;
 
 	// re-check the path cost
+
 	for (i=0;i < nProfile;i++)
 	{
 		if ( game_route_cost[g_id][i].incost == INFINITY || game_route_cost[g_id][i].egcost == INFINITY
@@ -535,6 +539,7 @@ int bgp_pemp_game_build(char filename[],int g_id)
 						&& game_route_cost[g_id][i].Pincost && game_route_cost[g_id][i].Pegcost)
 			game_route_cost[g_id][i].active = ACTIVE;
 	}
+
 
 	zlog_debug ("Building routing game %d ",g_id);
 
@@ -3201,9 +3206,11 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
 	   {
    	  	  zlog_debug(" Border router is forwarding new MED to peer ");
    	  	  for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, tmp_peer))
-   	  		  if (tmp_peer->sort == BGP_PEER_EBGP)
+   	  		  if (tmp_peer->sort == BGP_PEER_EBGP && tmp_peer->status != 8)
+   	  		  {
+   	  			  zlog_debug(" Peer status %d ",tmp_peer->status);
    	  			  bgp_process_announce_selected (tmp_peer, new, rn, afi, safi);
-
+   	  		  }
    	  	  zlog_debug(" Border router is forwarding new MED to peer ");
 	   }
 	   else // the re announcement is received from border router from peering AS
@@ -3211,12 +3218,15 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
  		  zlog_debug(" Border router forwarding new MED to its core router  ");
  		  for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, tmp_peer))
  			  if (tmp_peer->sort == BGP_PEER_IBGP)
+ 			  {
+ 				  zlog_debug(" Peer status %d ",tmp_peer->status);
  				  bgp_process_announce_selected (tmp_peer, new, rn, afi, safi);
+ 			  }
 
  		 zlog_debug(" Border router forwarding new MED to its core router  ");
 	   }
 
-	   // try to not process
+	   // Try to not process
 	   // bgp_process (bgp, rn, afi, safi);
 	   return 0;
    }
@@ -3321,7 +3331,6 @@ bgp_withdraw (struct peer *peer, struct prefix *p, struct attr *attr,
   for (ri = rn->info; ri; ri = ri->next)
     if (ri->peer == peer && ri->type == type && ri->sub_type == sub_type)
       break;
-
 
 
   /* @PEMP core router processing withdraw message */
