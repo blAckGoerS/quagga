@@ -1545,16 +1545,16 @@ _netlink_route_build_multipath(
         )
 {
 
-  zlog_debug("netlink_route_multipath() 0");
+  //zlog_debug("netlink_route_multipath() 0");
 
   rtnh->rtnh_len = sizeof (*rtnh);
 
-  zlog_debug("netlink_route_multipath() 1/2" );
+  //zlog_debug("netlink_route_multipath() 1/2" );
   rtnh->rtnh_flags = 0;
   rtnh->rtnh_hops = 0;
   rta->rta_len += rtnh->rtnh_len;
 
-  zlog_debug("netlink_route_multipath() 1");
+  //zlog_debug("netlink_route_multipath() 1");
 
   if (CHECK_FLAG (nexthop->flags, NEXTHOP_FLAG_ONLINK))
     rtnh->rtnh_flags |= RTNH_F_ONLINK;
@@ -1566,7 +1566,7 @@ _netlink_route_build_multipath(
                      &nexthop->gate.ipv4, bytelen);
       rtnh->rtnh_len += sizeof (struct rtattr) + 4;
 
-      zlog_debug("netlink_route_multipath() 2");
+      //zlog_debug("netlink_route_multipath() 2");
 
       if (nexthop->src.ipv4.s_addr)
         *src = &nexthop->src;
@@ -1583,7 +1583,7 @@ _netlink_route_build_multipath(
                    nexthop->ifindex);
     }
 
-  zlog_debug("netlink_route_multipath() 4");
+  //zlog_debug("netlink_route_multipath() 4");
 
 #ifdef HAVE_IPV6
   if (nexthop->type == NEXTHOP_TYPE_IPV6
@@ -1741,7 +1741,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 		if (discard)
         {
 
-			zlog_debug (" ===== DISCARD ROUTE ========= ");
+			//zlog_debug (" ===== DISCARD ROUTE ========= ");
 			if (rib->flags & ZEBRA_FLAG_BLACKHOLE)
 				req.r.rtm_type = RTN_BLACKHOLE;
 			else if (rib->flags & ZEBRA_FLAG_REJECT)
@@ -1794,7 +1794,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 			// or there should be no rule related to this community in kernel's routing rule
 			remove_unused_rule(rib->clubmed_community_id);
 
-			zlog_debug ("netlink_route_multipath() adding rule for community %d ",rib->clubmed_community_id);
+			//zlog_debug ("netlink_route_multipath() adding rule for community %d ",rib->clubmed_community_id);
 
 			added_community[number_of_added_community] = rib->clubmed_community_id;
 			number_of_added_community++;
@@ -1827,7 +1827,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 			//add rule
 			netlink_talk (&rule_req.n, &netlink_cmd);
 
-			zlog_debug ("Adding rule %d ",fwmark);
+			//zlog_debug ("Adding rule %d ",fwmark);
 			}
 		/* end PEMP rule */
 	 }
@@ -1903,7 +1903,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 		rta->rta_len = RTA_LENGTH (0);
 		rtnh = RTA_DATA (rta);
 
-		zlog_debug (" Multiple path case ");
+		//zlog_debug (" Multiple path case ");
 
 		/* @PEMP */
 		// adding multiple next hops to the NEW ROUTE request sending to kernel
@@ -1934,17 +1934,17 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 					/* add multipath routes to routing table X - each local community X will have a specific routing table  */
 					if (temp_nh->weight)
 					{
-						zlog_debug ("Nexthop x with weight %d ",temp_nh->weight);
+						zlog_debug ("Next hop x with weight %d ",temp_nh->weight);
 						nexthop->weight = temp_nh->weight;
 						nexthop->default_route_flag = temp_nh->default_route_flag;
 						routedesc = recursing ? "recursive, multihop" : "multihop";
 						nexthop_num++;
 
 						_netlink_route_debug(cmd, p, nexthop, routedesc, family);
-						zlog_debug ("Done debug  ");
+						//zlog_debug ("Done debug  ");
 						_netlink_route_build_multipath(routedesc, bytelen, nexthop, rta, rtnh, &src);
 
-						zlog_debug ("Nexthop number %d ",nexthop_num);
+						//zlog_debug ("Nexthop number %d ",nexthop_num);
 					}
 					else
 					{
@@ -1963,7 +1963,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 					// default routing table - handle routing for traffic not originate local community
 					if ( temp_nh->default_route_flag )
 					{
-						zlog_debug ("nexthop x with default route flag  ");
+						zlog_debug ("Next hop x with default route flag  ");
 						routedesc = recursing ? "recursive, 1 hop" : "single hop";
 						_netlink_route_debug(cmd, p, nexthop, routedesc, family);
 						_netlink_route_build_singlepath(routedesc, bytelen,nexthop, &req.n, &req.r,sizeof req);
@@ -1973,13 +1973,14 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 
 					// move to next hop -- original code
 					rtnh = RTNH_NEXT (rtnh);
-					zlog_debug (" rtnh next hop ");
+					// zlog_debug (" rtnh next hop ");
+
 					// Add this condition to avoid temp_nh point to NULL, since temp_nh is the new defined variable to support adding weight
 					// the original cost not handle this variable when loop to next hop
 					if ( temp_nh->next )
 						temp_nh = temp_nh->next;
 
-					zlog_debug ("next nexthop");
+					// zlog_debug ("next nexthop");
 
 					if (cmd == RTM_NEWROUTE)
 						SET_FLAG (nexthop->flags, NEXTHOP_FLAG_FIB);
@@ -1990,7 +1991,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 			// add attribute list to pemp_req
 			if ( rta->rta_len > RTA_LENGTH (0) )
 			{
-				zlog_debug ("add attribute to pemp request ");
+				// zlog_debug ("add attribute to pemp request ");
 				addattr_l (&pemp_req.n, NL_PKT_BUF_SIZE, RTA_MULTIPATH, RTA_DATA (rta), RTA_PAYLOAD (rta));
 			}
 
@@ -1999,7 +2000,7 @@ netlink_route_multipath (int cmd, struct prefix *p, struct rib *rib,
 		else
 		{
 
-			zlog_debug (" NON CLUBMED CASE ");
+			// zlog_debug (" NON CLUBMED CASE ");
 
 
 			nexthop_num = 0;
@@ -2049,9 +2050,9 @@ skip:
   /* @PEMP send the pemp_req to kernel via netlink socket = add route entry to routing table X */
   if ( rib->clubmed_community_id )
   {
-	  zlog_debug ("send the pemp_req");
+	  //zlog_debug ("send the pemp_req");
 	  netlink_talk (&pemp_req.n, &netlink_cmd);
-	  zlog_debug ("complete the pemp_req");
+	  //zlog_debug ("complete the pemp_req");
   }
   // always add route entry to default routing table
   return netlink_talk (&req.n, &netlink_cmd);
