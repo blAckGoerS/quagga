@@ -39,6 +39,8 @@ Boston, MA 02111-1307, USA.  */
 #include "bgpd/bgp_debug.h"
 #include "bgpd/bgp_mpath.h"
 
+#include <sys/time.h>
+
 /* All information about zebra. */
 struct zclient *zclient = NULL;
 struct in_addr router_id_zebra;
@@ -51,6 +53,16 @@ struct stream *bgp_nhweight_buf = NULL;
 
 /* @PEMP Growable buffer for nexthops' clubmed community id sent to zebra */
 struct stream *bgp_nhflag_buf = NULL;
+
+/* @PEMP Get current time in milisecond - use that for evaluating processing time */
+long long current_timestampx() {
+
+	struct timeval te;
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000;
+    zlog_debug("-----------> Millisecond %ld ", milliseconds);
+    return milliseconds;
+}
 
 /* Router-id update message from zebra. */
 static int
@@ -271,81 +283,62 @@ zebra_read_ipv4 (int command, struct zclient *zclient, zebra_size_t length)
   else
     api.metric = 0;
 
-  /* @PEMP get the ingress cost from the stream and put to api.ingress_cost */
+  /* @PEMP */
+  /* bgpd handles the ingress cost distributed from zebra ( ospfd computes and sends ingress cost to zebra ) */
   if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
   {
-    api.ingress_cost = stream_getl (s);
-    api.bid.s_addr = stream_get_ipv4 (s);
-    // get the ip of border router associated with that ingress cost value
-    // define in api structure an attribute to handle ip address of border router
-    // zapi_ipv4 structure is defined in lib/zclient.h
+	  api.ingress_cost 	= stream_getl (s);		// get the ingress cost from the received stream
+	  api.bid.s_addr 	= stream_get_ipv4 (s);	// get the ip address of corresponding border router
 
+	  /*
+	   * Modify the structure of zapi_ipv4 to include api.ingress_cost and api.bid
+	   * zapi_ipv4 structure is defined in lib/zclient.h
+	   * ZAPI_MESSAGE_INGRESSCOST is also new defined flag value
+	   */
   }
   if (command == ZEBRA_IPV4_ROUTE_ADD)
-    {
-      if (BGP_DEBUG(zebra, ZEBRA))
-		{
-			char buf[2][INET_ADDRSTRLEN];
-			zlog_debug("Zebra rcvd: IPv4 route add %s %s/%d nexthop %s metric %u",
+  {
+	  if (BGP_DEBUG(zebra, ZEBRA))
+	  {
+		  char buf[2][INET_ADDRSTRLEN];
+
+		  zlog_debug("Zebra rcvd: IPv4 route add %s %s/%d nexthop %s metric %u",
 				zebra_route_string(api.type),
 				inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
 				p.prefixlen,
 				inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
 				api.metric);
-		}
-
-	/* @PEMP redistribute route from the kernel to bgpd - the purpose is to collect and update IGP cost */
-	 if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
-	 {
-		 /* PEMP test */
-		 char buf[2][INET_ADDRSTRLEN];
-		 zlog_debug("Zebra rcvd: IPv4 route add %s %s/%d nexthop %s metric %u ingress cost = %u ",
-				 zebra_route_string(api.type),
-				 inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
-				 p.prefixlen,
-				 inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
-				 api.metric, api.ingress_cost);
-		 /* end test */
-
-		 zlog_debug("call to redistribute add route");
-		 bgp_redistribute_add_pemp((struct prefix *)&p, &nexthop, NULL,
+	  }
+	  /* @PEMP */
+	  /* add the network prefix as well as its cost values to bgpd routing table */
+	  if (CHECK_FLAG (api.message, ZAPI_MESSAGE_INGRESSCOST))
+	  {
+		 // zlog_debug("call to redistribute add route");
+		  bgp_redistribute_add_pemp((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type,api.ingress_cost,api.bid);
-
-
-	 }
-	 else	 
-		// normal process
-		bgp_redistribute_add((struct prefix *)&p, &nexthop, NULL,
+		 // bgp_redistribute_add_pemp is defined at bgp_route.c
+	  }
+	  else	// normal process
+		  bgp_redistribute_add((struct prefix *)&p, &nexthop, NULL,
 			   api.metric, api.type);
-    }
-  else // not a ZEBRA_IPV4_ROUTE_ADD --- it is a ROUTE DELETE instead
-    {
-      	  if (BGP_DEBUG(zebra, ZEBRA))
-      	  {
-      		  char buf[2][INET_ADDRSTRLEN];
-      		  zlog_debug("Zebra rcvd: IPv4 route delete %s %s/%d "
+  }
+  else // command != ZEBRA_IPV4_ROUTE_ADD -> it is a ROUTE DELETE instead
+  {
+	  if (BGP_DEBUG(zebra, ZEBRA))
+	  {
+		  char buf[2][INET_ADDRSTRLEN];
+		  zlog_debug("Zebra rcvd: IPv4 route delete %s %s/%d "
 		     "nexthop %s metric %u",
 		     zebra_route_string(api.type),
 		     inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
 		     p.prefixlen,
 		     inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
 		     api.metric);
-      	  }
+	  }
 
-
-      	char buf[2][INET_ADDRSTRLEN];
-      	      		  zlog_debug("Zebra rcvd: IPv4 route delete %s %s/%d "
-      			     "nexthop %s metric %u",
-      			     zebra_route_string(api.type),
-      			     inet_ntop(AF_INET, &p.prefix, buf[0], sizeof(buf[0])),
-      			     p.prefixlen,
-      			     inet_ntop(AF_INET, &nexthop, buf[1], sizeof(buf[1])),
-      			     api.metric);
-
-      zlog_debug("[][][] call to redistribute delete route");
       bgp_redistribute_delete_pemp((struct prefix *)&p, api.type,api.bid);
-    }
-
+      // bgp_redistribute_delete_pemp also includes the normal bgp_redistribute_delete
+  }
   return 0;
 }
 
@@ -718,9 +711,11 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
   struct peer *peer;
   struct bgp_info *mpinfo;
   size_t oldsize, newsize;
-  /* PEMP */
+
+  /* @PEMP */
   size_t w_oldsize, w_newsize;
   size_t c_oldsize, c_newsize;
+  /* end PEMP */
   
   if (zclient->sock < 0)
     return;
@@ -748,15 +743,15 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
       newsize = (sizeof (struct in_addr *) * (bgp_info_mpath_count (info) + 1));
       newsize = stream_resize (bgp_nexthop_buf, newsize);
       if (newsize == oldsize)
-	{
+      {
 	  zlog_err ("can't resize nexthop buffer");
 	  return;
-	}
+      }
     }
-
   stream_reset (bgp_nexthop_buf);
-  /*@PEMP */
-  /* resize nexthop weight buffer size if necessary */
+
+  /* @PEMP */
+  	/* resize nexthop_weight  buffer size if necessary */
 	if ((w_oldsize = stream_get_size ( bgp_nhweight_buf)) <
        (sizeof (u_char *) * (bgp_info_mpath_count (info) + 1)))
 	{
@@ -764,7 +759,7 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
        w_newsize = stream_resize ( bgp_nhweight_buf, w_newsize);
        if (w_newsize == w_oldsize)
 		{
-			zlog_err ("can't resize nexthop weight  buffer");
+			zlog_err ("can't resize nexthop_weight  buffer");
 			return;
 		}
     }
@@ -778,13 +773,12 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
 		c_newsize = stream_resize ( bgp_nhflag_buf, c_newsize);
 		if (c_newsize == c_oldsize)
 		{
-			zlog_err ("can't resize nexthop community id buffer");
+			zlog_err ("Can't resize nexthop_community_id buffer");
 			return;
 		}
 	}
 	stream_reset ( bgp_nhflag_buf);
-
-  /* end PEMP*/
+	/*end PEMP*/
   
   
   if (p->family == AF_INET)
@@ -793,9 +787,9 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
       struct in_addr *nexthop;
 
 	  /* @PEMP */
-      u_char nhweight;
-      u_char wflag = 0;
-      u_char nhflag;
+      u_char nhweight;	//next hop weight
+      u_char wflag=0; 	//weight flag
+      u_char nhflag;	//next hop flag
       /* end PEMP*/
 	  
       api.flags = flags;
@@ -814,26 +808,24 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
 		  
     	  wflag = 1;
     	  nhweight = info->attr->weight;
-		  zlog_debug ("putting weight on stream %d ",nhweight);
+		  //zlog_debug ("Adding weight %d ",nhweight);
     	  stream_put (bgp_nhweight_buf, &nhweight, sizeof (u_char *));
     	  for (mpinfo = bgp_info_mpath_first (info); mpinfo; mpinfo = bgp_info_mpath_next (mpinfo))
     	  {
     		  nhweight = mpinfo->attr->weight;
-    		  zlog_debug ("putting weight on stream %d ",nhweight);
+    		  //zlog_debug ("Adding weight %d ",nhweight);
     		  stream_put (bgp_nhweight_buf, &nhweight, sizeof (u_char *));
     	  }
 
     	  nhflag = info->attr->default_route_flag;
-    	  zlog_debug ("putting default route flag on stream %d ",nhflag);
+    	  //zlog_debug ("Setting the default route flag  %d ",nhflag);
     	  stream_put (bgp_nhflag_buf, &nhflag, sizeof (u_char *));
     	  for (mpinfo = bgp_info_mpath_first (info); mpinfo; mpinfo = bgp_info_mpath_next (mpinfo))
     	  {
     		  nhflag = mpinfo->attr->default_route_flag;
-    		  zlog_debug ("putting default route flag on stream %d ",nhflag);
+    		  //zlog_debug ("Setting the default route flag %d ",nhflag);
     		  stream_put (bgp_nhflag_buf, &nhflag, sizeof (u_char *));
     	  }
-
-
       }
       /* end PEMP*/
 	
@@ -886,6 +878,9 @@ bgp_zebra_announce (struct prefix *p, struct bgp_info *info, struct bgp *bgp, sa
 				    sizeof(buf[1])));
       }
 
+      /* PEMP test */
+      zlog_debug("UPDATE Zebra with new route ");
+      current_timestampx();
       zapi_ipv4_route (ZEBRA_IPV4_ROUTE_ADD, zclient, 
                        (struct prefix_ipv4 *) p, &api);
     }

@@ -30,19 +30,16 @@
 /* values for vertex->flags */
 #define OSPF_VERTEX_PROCESSED      0x01
 
-/* define the maximum number of profile support */
-#define MAX_NPROFILE  3
-
 /* The "root" is the node running the SPF calculation */
 
 /* A router or network in an area */
 struct vertex
 {
   u_char flags;
-  u_char type;			/* copied from LSA header */
+  u_char type;		/* copied from LSA header */
   struct in_addr id;	/* copied from LSA header */
   struct lsa_header *lsa; /* Router or Network LSA */
-  int *stat;			/* Link to LSA status. */
+  int *stat;		/* Link to LSA status. */
   u_int32_t distance;	/* from root to this vertex */  
   struct list *parents;		/* list of parents in SPF tree */
   struct list *children;	/* list of children in SPF tree*/
@@ -68,12 +65,13 @@ extern void ospf_rtrs_free (struct route_table *);
 /* void ospf_spf_calculate_timer_add (); */
 
 /* @PEMP */
-/* structure added to hold the ingress cost value */
+/* new structure added for ingress routing cost calculation (cost from border router to clubmed router */
+#define MAX_NPROFILE  3 
 struct border_router_ingresscost 
 {
-	struct in_addr b_router_id; 	// ip address of border router
-	int i_rcost; // cost from border router to clubmed router
-	int status; // status = 1 : active and status = 0 : inactive
+	struct in_addr b_router_id; /* ip address of border router */
+	int i_rcost; /* cost from border router to clubmed router */
+	int status; /* status = 1 : active and status = 0 : inactive */
 };
 extern int add_bRouter(const char *ipa); 
 extern int add_bRouter_inaddr(struct in_addr b_router_id);

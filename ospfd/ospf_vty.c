@@ -229,7 +229,7 @@ ALIAS (no_ospf_router_id,
        NO_STR
        "router-id for the OSPF process\n")
 
-/*  */
+/* @PEMP */
 DEFUN (pemp_border_router_id,
        pemp_border_router_id_cmd,
        "border router-id A.B.C.D",

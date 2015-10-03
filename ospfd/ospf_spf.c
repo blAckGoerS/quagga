@@ -46,11 +46,21 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 #include "ospfd/ospf_abr.h"
 #include "ospfd/ospf_dump.h"
 
+#include <sys/time.h>
 /* @PEMP new global variable to support ingress cost calculating*/
 static struct border_router_ingresscost b_router_list[MAX_NPROFILE];
 static int b_router_index = 0;
 
-/* @PEMP functions to support ingress cost calculation */
+long long current_timestamp() {
+
+	struct timeval te;
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // caculate milliseconds
+    zlog_debug("-----------> Millisecond %ld ", milliseconds);
+    return milliseconds;
+}
+
+
 void init_bRouter_list() 
 {
 	int i; 
@@ -139,8 +149,6 @@ int get_ingress_cost(struct in_addr b_router_id)
 	else 
 		return b_router_list[i].i_rcost;
 }
-
-/* end PEMP support function */
 
 static void ospf_vertex_free (void *);
 /* List of allocated vertices, to simplify cleanup of SPF.
@@ -1119,7 +1127,7 @@ ospf_spf_process_stubs (struct ospf_area *area, struct vertex *v,
                 (l->m[0].tos_count * OSPF_ROUTER_LSA_TOS_SIZE));
 
           if (l->m[0].type == LSA_LINK_TYPE_STUB)
-	    ospf_intra_add_stub(rt, l, v, area, parent_is_root, lsa_pos);
+	    ospf_intra_add_stub (rt, l, v, area, parent_is_root, lsa_pos);
 	  lsa_pos++;
         }
     }
@@ -1229,6 +1237,7 @@ ospf_rtrs_print (struct route_table *rtrs)
                 }
             }
         }
+
   zlog_debug ("ospf_rtrs_print() end");
 }
 #endif
@@ -1269,7 +1278,7 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
       /* In case of V is Router-LSA. */
       if (v->lsa->type == OSPF_ROUTER_LSA)
       {
-		zlog_debug ("V is Router-LSA ");
+		//zlog_debug ("V is Router-LSA ");
 		l = (struct router_lsa_link *) p;
 		lsa_pos = lsa_pos_next; /* LSA link position */
 		lsa_pos_next++;
@@ -1291,33 +1300,27 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
           /* (b) Otherwise, W is a transit vertex (router or transit
              network).  Look up the vertex W's LSA (router-LSA or
              network-LSA) in Area A's link state database. */
-			 zlog_debug ("Consider V's links and its connected LSA W");
+			 //zlog_debug ("Consider V's links and its connected LSA W");
           switch (type)
             {
             case LSA_LINK_TYPE_POINTOPOINT:
             case LSA_LINK_TYPE_VIRTUALLINK:
-              if (type == LSA_LINK_TYPE_VIRTUALLINK)
-                {
-                    zlog_debug ("Looking up LSA through VL: %s",inet_ntoa (l->link_id));
-                }
-
-				zlog_debug ("Looking up lsdb fir w_lsa");
+            	//zlog_debug ("Looking up LSA through VL: %s",inet_ntoa (l->link_id));
+				// zlog_debug ("Looking up lsdb fir w_lsa");
 				/* need to refer back to the lsdb */
               w_lsa = ospf_lsa_lookup (area, OSPF_ROUTER_LSA, l->link_id,
                                        l->link_id);
-									   
-              if (w_lsa)
-                {
-                    zlog_debug ("found Router LSA %s", inet_ntoa (l->link_id));
-                }
+              //if (w_lsa)
+                    // zlog_debug ("found Router LSA %s", inet_ntoa (l->link_id));
+
               break;
             case LSA_LINK_TYPE_TRANSIT:
-                zlog_debug ("Looking up Network LSA, ID: %s",inet_ntoa (l->link_id));
+                //zlog_debug ("Looking up Network LSA, ID: %s",inet_ntoa (l->link_id));
 				
 				w_lsa = ospf_lsa_lookup_by_id (area, OSPF_NETWORK_LSA,l->link_id);
 			  
-              if (w_lsa)
-                  zlog_debug ("found the LSA");
+              //if (w_lsa)
+                 //zlog_debug ("found the LSA");
               break;
 			  
             default:
@@ -1328,7 +1331,7 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
       else
         {
           /* In case of V is Network-LSA. */
-		  zlog_debug ("V is Network-LSA");
+		  // zlog_debug ("V is Network-LSA");
           r = (struct in_addr *) p;
           p += sizeof (struct in_addr);
 
@@ -1341,28 +1344,29 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
             }
         }
 
+
       /* (b cont.) If the LSA does not exist, or its LS age is equal
          to MaxAge, or it does not have a link back to vertex V,
          examine the next link in V's LSA.[23] */
       if (w_lsa == NULL)
         {
-            zlog_debug ("No LSA found");
+            //zlog_debug ("No LSA found");
           continue;
         }
 
       if (IS_LSA_MAXAGE (w_lsa))
         {
-            zlog_debug ("LSA is MaxAge");
+            //zlog_debug ("LSA is MaxAge");
           continue;
         }
 
 		/* need to refer back to the lsdb */
 		if (ospf_lsa_has_link (w_lsa->data, v->lsa) < 0 )
         {
-			zlog_debug ("The LSA doesn't have a link back");
+			//zlog_debug ("The LSA doesn't have a link back");
 			continue;
         }
-		zlog_debug ("The LSA has a link back ");
+		// zlog_debug ("The LSA has a link back ");
 		
 		/* (c) If vertex W is already on the shortest-path tree, examine
          the next link in the LSA. */
@@ -1370,7 +1374,7 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
 		 and check for w_lsa->stat - may impact the latter spf tree build process */
 		if (w_lsa->stat == LSA_SPF_IN_SPFTREE)
 		{
-			zlog_debug ("The LSA is already in SPF");
+			//zlog_debug ("The LSA is already in SPF");
 			continue;
 		}
 
@@ -1380,19 +1384,19 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
          vertex V and the advertised cost of the link between vertices
          V and W.  If D is: */
 
-		 zlog_debug ("Link cost calculation ");
+		 //zlog_debug ("Link cost calculation ");
 		 
 		/* calculate link cost D. */
 		if (v->lsa->type == OSPF_ROUTER_LSA)
 			distance = v->distance + ntohs (l->m[0].metric);
 		else /* v is not a Router-LSA */
 			distance = v->distance;
-		zlog_debug ("link cost calculation done with distance = %d ",distance);
+		//zlog_debug ("link cost calculation done with distance = %d ",distance);
 		
 		/* Is there already vertex W in candidate list? */
 		if (w_lsa->stat == LSA_SPF_NOT_EXPLORED)
 		{
-			zlog_debug ("add new vertex to candidate list ");
+			//zlog_debug ("add new vertex to candidate list ");
 			/* prepare vertex W. */
 			w = ospf_vertex_new (w_lsa);
 		  
@@ -1403,7 +1407,7 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
 		}
 		else if (w_lsa->stat >= 0)
 		{
-			zlog_debug ("vertex already in the candidate list ");
+			//zlog_debug ("vertex already in the candidate list ");
 			/* Get the vertex from candidates. */
 			w = candidate->array[w_lsa->stat];
 
@@ -1441,25 +1445,27 @@ ospf_spf_next2 (struct vertex *v, struct ospf_area *area,
     } /* end loop over the links in V's LSA */
 }
 
-/* @PEMP build the spf tree in which the input border router is root and does not include the leave in tree
-   the tree will not be completely built, once the distance from root to clubmed router is found (clubmed router now is a vertex on the tree)
+/* @PEMP build the spf tree with border router as root and not include the leave in tree
+   the tree will not be completely built, once the distance from root to clubmedrouter is found (clubmed router become a vertex on the tree)
    it will return the distance as ingress cost and terminate the function */
 static int calculate_ingress_route_cost(struct in_addr b_router_id, struct ospf_area *area)
 {
-	struct in_addr c_router_id; // core router id = ip address of this router
+	struct in_addr c_router_id; //clubmed router id aka this router id 
 	int ingress_cost = 0;
+	//char *ipa = "192.168.11.2";
+	//struct in_addr b_router_id;	//border router id
+	//int ret;
+	//ret = inet_aton (ipa,&b_router_id);
 	struct ospf_lsa *b_router_lsa;
 	b_router_lsa = ospf_lsa_lookup_by_id(area,OSPF_ROUTER_LSA,b_router_id);
-	// the lsa (link state advertisement structure) of the input border router
-
+		
 	if (b_router_lsa)
 	{
-		// zlog_debug ("===== Start build tree with border router as root ======");
-
-		//clear the status of all lsa in the lsdb
+		//zlog_debug ("===== Start build tree with border router as root ======");
+		/* clean the status of all lsa in the lsdb */
 		ospf_lsdb_clean_stat (area->lsdb);
 	
-		//copy ospf_area
+		/* Copy ospf_area */
 		struct ospf_area c_area;
 		c_area = *area;
 		c_area.area_id = area->area_id;
@@ -1467,71 +1473,71 @@ static int calculate_ingress_route_cost(struct in_addr b_router_id, struct ospf_
 		if (area->router_lsa_self)
 			c_router_id = area->router_lsa_self->data->adv_router;
 		
-		//create candidate list
+		
+		/* create candidate list */
 		struct pqueue *candidate;
 		candidate = pqueue_create();
-		candidate->cmp 		= cmp;
-		candidate->update 	= update_stat;
-		candidate->size 	= 0; //add to fix the ospfd crash issue
+		candidate->cmp = cmp;
+		candidate->update = update_stat;
+		candidate->size = 0; // add to fix the ospfd crash issue 
 		
-		//create new vertex from the border router lsa, this vertex will be assigned as root node
+		/* Create root node. */
 		struct vertex *v;
-		v = ospf_vertex_new(b_router_lsa);
+		v = ospf_vertex_new (b_router_lsa);
 		c_area.spf = v;	
 		
 		/* Set LSA position to LSA_SPF_IN_SPFTREE. This vertex is the root of the spanning tree. */  
 		*(v->stat) = LSA_SPF_IN_SPFTREE;
 		
-		// set Area A's TransitCapability to FALSE
-		// these setting will not impact the original area, since we work on its copied version and this variable is not a pointer
+		/* Set Area A's TransitCapability to FALSE. will not impact the original area, since we work on its copied version and this variable is not a pointer */
 		c_area.transit = OSPF_TRANSIT_FALSE;
 		c_area.shortcut_capability = 1;
 		
-		//for each vertex in the candidate list, go through all links ,select next vertex add to the candidate list
+		/* for each vertex , go through all links , select next vertex add to the candidate list */
 		for (;;)
 	    {
-			//for each vertex, go through all of its links, select next vertex to explore and add it to the candidate list
-			ospf_spf_next2(v, &c_area, candidate);
-
-			//stop the loop when no more vertex on the candidate list
+			/* for each vertex , go through all links , select next vertex to consider add it to the candidate list */
+			ospf_spf_next2 (v, &c_area, candidate);
+			//zlog_debug ("done ospf_spf_next2");
+			/*stop the loop when no more vertex on the candidate list*/		
 			if (candidate->size == 0)
+			{
+			    //zlog_debug ("candidate size zero");
 				break;
+			}
+			//zlog_debug ("candidate size not zero");
 			
-			// get the new selected vertex to consider from the candidate list by dequeuing it from the candidate list
-			// v now is not the root anymore
+			/* get the new seleceted vertex to consider from the candidate list by dequeuing it from the candidate list*/
+			/* v now is not the root anymore */
 			v = (struct vertex *) pqueue_dequeue (candidate);
 			
-			//this vertex is selected and put in the spf tree by set status = LSA_SPF_IN_SPFTREE
+			/*this vertex is selected and put in the spf tree already - set status = LSA_SPF_IN_SPFTREE */
 			*(v->stat) = LSA_SPF_IN_SPFTREE;
 
-			// NOTE calculate next hop is an important step, it help to record the vertex v the distance
-			/*
-			zlog_debug ("root %s",inet_ntoa((c_area.spf)->id));
-			zlog_debug ("vertex %s",inet_ntoa(v->id));
-			zlog_debug ("distance from root %d",v->distance);
-			*/
+			/* remember here ! calculate next hop is an important step, it help to record the vertex v an associating distance */
+			// zlog_debug ("root %s",inet_ntoa((c_area.spf)->id));
+			// zlog_debug ("vertex %s",inet_ntoa(v->id));
+			// zlog_debug ("distance from root %d",v->distance);
 			
 			ospf_vertex_add_parent (v);
-
-			// reach the clubmed router
 			if ( (v->id).s_addr == c_router_id.s_addr )
 			{
-			    zlog_debug ("Found the distance from border router to core router, return the ingress cost");
+			    // zlog_debug (" Found distance to real Root [core router]- Terminate ");
 				ingress_cost = v->distance;
-
-				//clean up the candidate list
+				//zlog_debug (" collected ingress cost = %d",v->distance);
+				/* need to check this one carefully */
 				pqueue_delete (candidate);
-				//clean up next hop
+				//zlog_debug (" done clean up the candidate list");
 				ospf_canonical_nexthops_free (c_area.spf);
-				//clean up the vertex list
+				//zlog_debug (" done clean up the next hop");
 				list_delete_all_node (&vertex_list);		
-
-				//return the ingress cost for input border router
+				//zlog_debug (" done clean up the vertex list");				
 				return ingress_cost;
 			}
+		
 	    } /* end loop until no more candidate vertices */
 		
-		// the spf tree have been completely built - clean up /
+		/* The spf tree have been completely built - clean up */
 		pqueue_delete (candidate);
 		ospf_canonical_nexthops_free (c_area.spf);
 		list_delete_all_node (&vertex_list);			
@@ -1550,33 +1556,32 @@ ospf_spf_calculate (struct ospf_area *area, struct route_table *new_table,
   struct vertex *v;
   
   /* @PEMP */
-  // loop through all border router in this area - where we define the list of border router ? auto or need manual configuration
-  // firstly calculate the igp cost from each clubmed router to this clubmed router by calling to calculate_ingress_route_cost() function
-  // after done the ingress cost calculation update the border router array with associated ingress cost value
-  // the normal egress cost calculation is then executed with this router as root
-  // check latter area->ospf->pemp_support
+  //ospf_spf_calculate_bRouter_asRoot(area);
+  /*
+  char *ipa = "192.168.11.2";
+  struct in_addr b_router_id;	//border router id
+  int ret;
+  ret = inet_aton (ipa,&b_router_id);
+  */
+  //check latter area->ospf->pemp_support
   int i;
-
-  if (area->ospf->pemp_support)
+  for ( i = 0 ; i < b_router_index ; i++)
   {
-	  for ( i = 0 ; i < b_router_index ; i++)
-	  {
-		struct in_addr b_router_id;
-		b_router_id = b_router_list[i].b_router_id;
-		// compute the ingress cost, the routing cost from border router to core router
-		int ingress_cost = calculate_ingress_route_cost(b_router_id,area);
-		if ( ingress_cost != -1 )
-		{
-			zlog_debug ("Ingress cost = %d",ingress_cost);
-			update_b_router_cost(ingress_cost,b_router_id);
-			// update the border router cost array with ingress cost value
-		}
-		else
-			zlog_debug ("Not found ingress routing cost value yet");
-	  }
+	struct in_addr b_router_id;
+	b_router_id = b_router_list[i].b_router_id;
+	int ingress_cost = calculate_ingress_route_cost(b_router_id,area);
+	if ( ingress_cost != -1 )
+	{
+		//zlog_debug ("ingress cost = %d",ingress_cost);
+		update_b_router_cost(ingress_cost,b_router_id);
+	}
+	else 
+	{
+		//zlog_debug ("not found ingress routing cost value yet");
+	}
   }
-  /* end PEMP*/
   
+  /* end PEMP*/		
   if (IS_DEBUG_OSPF_EVENT)
     {
       zlog_debug ("ospf_spf_calculate: Start");
@@ -1638,6 +1643,10 @@ ospf_spf_calculate (struct ospf_area *area, struct route_table *new_table,
       v = (struct vertex *) pqueue_dequeue (candidate);
       /* Update stat field in vertex. */
       *(v->stat) = LSA_SPF_IN_SPFTREE;
+		
+		/*@PEMP */  
+	    //zlog_debug ("vertex %s",inet_ntoa(v->id));
+		//zlog_debug ("distance from root %d",v->distance);
 			
       ospf_vertex_add_parent (v);
 
@@ -1705,6 +1714,10 @@ ospf_spf_calculate_timer (struct thread *thread)
   new_rtrs = route_table_init ();
 
   ospf_vl_unapprove (ospf);
+
+  /*@PEMP for testing purpose only*/
+  //add_bRouter("192.168.11.2");
+  //add_bRouter("192.168.12.2");
   
   /* Calculate SPF for each area. */
   for (ALL_LIST_ELEMENTS (ospf->areas, node, nnode, area))
@@ -1725,6 +1738,9 @@ ospf_spf_calculate_timer (struct thread *thread)
   ospf_vl_shut_unapproved (ospf);
 
   ospf_ia_routing (ospf, new_table, new_rtrs);
+
+  zlog_debug ("SPF: Timer (SPF calculation expire)");
+  current_timestamp();
 
   ospf_prune_unreachable_networks (new_table);
   ospf_prune_unreachable_routers (new_rtrs);
@@ -1761,8 +1777,8 @@ ospf_spf_calculate_timer (struct thread *thread)
   return 0;
 }
 
-/* Add schedule for SPF calculation.  To avoid frequent SPF calculation, we
-   set timer for SPF calculation. */
+/* Add schedule for SPF calculation.  To avoid frequenst SPF calc, we
+   set timer for SPF calc. */
 void
 ospf_spf_calculate_schedule (struct ospf *ospf)
 {
@@ -1804,7 +1820,7 @@ ospf_spf_calculate_schedule (struct ospf *ospf)
       if (ht < ospf->spf_max_holdtime)
         ospf->spf_hold_multiplier++;
       
-      /* always honor the SPF initial delay */
+      /* always honour the SPF initial delay */
       if ( (ht - elapsed) < ospf->spf_delay)
         delay = ospf->spf_delay;
       else
