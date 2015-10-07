@@ -3226,8 +3226,9 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
  		 zlog_debug(" Border router forwarding new MED to its core router  ");
 	   }
 
-	   // Try to not process
-	   // bgp_process (bgp, rn, afi, safi);
+	   bgp_unlock_node (rn);
+
+	   bgp_process (bgp, rn, afi, safi);
 	   return 0;
    }
 
