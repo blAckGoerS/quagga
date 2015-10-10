@@ -260,7 +260,7 @@ bgp_adj_out_set (struct bgp_node *rn, struct peer *peer, struct prefix *p,
     adv->baa = baa_new ();
   adv->adj = adj;
 
-  zlog_debug ("peer status %d",peer->status);
+  // zlog_debug ("peer status %d",peer->status);
 
   /* Add new advertisement to advertisement attribute list. */
   bgp_advertise_add (adv->baa, adv);
@@ -298,7 +298,7 @@ bgp_adj_out_unset (struct bgp_node *rn, struct peer *peer, struct prefix *p,
       adv->rn = rn;
       adv->adj = adj;
 
-	  /* PEMP test */
+      /* PEMP test */
 	   //zlog_debug ("bgp_adj_out_unset send advertisement to %s",peer->host);
 	   //char buf[BUFSIZ];
 	   //zlog_debug (" withdraw network %s/%d",inet_ntop (p->family, &p->u.prefix, buf, SU_ADDRSTRLEN),p->prefixlen);

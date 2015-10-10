@@ -398,7 +398,7 @@ bgp_info_mpath_update_rg (struct bgp_node *rn, struct bgp_info *new_best,
 	  int mpath_changed, debug;
 	  char pfx_buf[INET_ADDRSTRLEN], nh_buf[2][INET_ADDRSTRLEN];
 
-	  zlog_debug("bgp_info_mpath_update_rg");
+	  // zlog_debug("bgp_info_mpath_update_rg");
 
 	  mpath_changed = 0;
 	  maxpaths = BGP_DEFAULT_MAXPATHS;
@@ -447,7 +447,7 @@ bgp_info_mpath_update_rg (struct bgp_node *rn, struct bgp_info *new_best,
 	  int count = 0;
 	  while (mp_node)
 	  {
-		  zlog_debug("mp_list node  %d ",count);
+		  // zlog_debug("mp_list node  %d ",count);
 		  mp_next_node = mp_node ? listnextnode (mp_node) : NULL;
 		  count++;
 			

@@ -2349,6 +2349,9 @@ bgp_process_main (struct work_queue *wq, void *data)
 
   /* Best path selection. */
   bgp_best_selection (bgp, rn, &bgp->maxpaths[afi][safi], &old_and_new);
+  zlog_debug("Routing decision made at ");
+  current_timestamp();
+
   old_select = old_and_new.old;
   new_select = old_and_new.new;
 
@@ -2989,6 +2992,9 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
 
   // pass all filter
 
+  zlog_debug(" 1 RECEIVING ADVERTISEMENT for  %s/%d from %s ",inet_ntop(p->family, &p->u.prefix, buf, SU_ADDRSTRLEN),p->prefixlen, peer->host);
+  current_timestamp();
+
   attr_new = bgp_attr_intern (&new_attr);
 
   /* If the update is implicit withdraw. */
@@ -3153,7 +3159,7 @@ bgp_update_main (struct peer *peer, struct prefix *p, struct attr *attr,
   bgp_aggregate_increment(bgp, p, new, afi, safi);
   
   /* @PEMP decode */
-  zlog_debug(" RECEIVING ADVERTISEMENT for  %s/%d with med %d from %s ",inet_ntop(p->family, &p->u.prefix, buf, SU_ADDRSTRLEN),p->prefixlen,attr->med, peer->host);
+  zlog_debug(" 2 RECEIVING ADVERTISEMENT for  %s/%d with med %d from %s ",inet_ntop(p->family, &p->u.prefix, buf, SU_ADDRSTRLEN),p->prefixlen,attr->med, peer->host);
   current_timestamp();
 
   if ( core_router )
